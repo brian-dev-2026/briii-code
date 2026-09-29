@@ -1,0 +1,39 @@
+{
+	"name": "briii-deploy",
+	"displayName": "Briii Deploy",
+	"description": "One-click Vercel deploys from the status bar, using the official Vercel CLI.",
+	"publisher": "briii",
+	"version": "1.0.0",
+	"license": "MIT",
+	"engines": { "vscode": "^1.80.0" },
+	"categories": ["Other"],
+	"main": "./extension.js",
+	"activationEvents": ["onStartupFinished"],
+	"capabilities": {
+		"untrustedWorkspaces": { "supported": false, "description": "Deploying runs the Vercel CLI in the workspace folder." }
+	},
+	"contributes": {
+		"commands": [
+			{ "command": "briii.deploy", "title": "Deploy…", "category": "Vercel", "icon": "$(triangle-up)" },
+			{ "command": "briii.deployPreview", "title": "Deploy Preview", "category": "Vercel" },
+			{ "command": "briii.deployProduction", "title": "Deploy to Production", "category": "Vercel" },
+			{ "command": "briii.showLastDeployment", "title": "Show Last Deployment", "category": "Vercel" },
+			{ "command": "briii.openDashboard", "title": "Open Vercel Dashboard", "category": "Vercel" }
+		],
+		"configuration": {
+			"title": "Briii Deploy",
+			"properties": {
+				"briiiDeploy.showStatusBar": {
+					"type": "boolean",
+					"default": true,
+					"description": "Show the ▲ Deploy button in the status bar when a folder is open."
+				},
+				"briiiDeploy.vercelCommand": {
+					"type": "string",
+					"default": "vercel",
+					"description": "Command used to run the Vercel CLI (for example \"npx vercel\")."
+				}
+			}
+		}
+	}
+}

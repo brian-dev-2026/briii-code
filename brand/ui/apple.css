@@ -1,0 +1,126 @@
+/* ==========================================================================
+   Briii Code - Apple-style UI.
+   rebrand.mjs appends this to out/vs/workbench/workbench.desktop.main.css and
+   copies fonts/InterVariable.woff2 to out/media/briii-inter.woff2.
+   Colours come from the Briii Light / Briii Dark themes; this file only does
+   shape, type and depth. Selectors target VS Code internals - re-check after
+   a VSCodium update if something looks off.
+   ========================================================================== */
+
+@font-face {
+	font-family: "Inter Briii";
+	src: url(../../media/briii-inter.woff2) format("woff2");
+	font-weight: 100 900;
+	font-style: normal;
+	font-display: block;
+}
+
+/* ---- type ---------------------------------------------------------------- */
+.monaco-workbench {
+	--monaco-font: "Inter Briii", "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei", "Yu Gothic UI", "Malgun Gothic", sans-serif !important;
+	font-feature-settings: "cv05", "cv08", "ss03";
+	letter-spacing: -0.003em;
+	-webkit-font-smoothing: antialiased;
+}
+
+/* Title-case section headers instead of SHOUTING CAPS, like Finder/Xcode */
+.monaco-workbench .part > .title > .title-label h2,
+.monaco-workbench .pane > .pane-header h3.title,
+.monaco-workbench .part.panel .composite-bar .action-label,
+.monaco-workbench .part.auxiliarybar .composite-bar .action-label {
+	text-transform: none !important;
+	font-weight: 600;
+	letter-spacing: 0;
+}
+.monaco-workbench .pane > .pane-header { font-size: 11.5px; }
+
+/* ---- shape: bump every themed corner radius ------------------------------ */
+:root,
+.monaco-workbench {
+	--vscode-cornerRadius-xSmall: 4px !important;
+	--vscode-cornerRadius-small: 6px !important;
+	--vscode-cornerRadius-medium: 8px !important;
+	--vscode-cornerRadius-large: 10px !important;
+	--vscode-cornerRadius-xLarge: 12px !important;
+}
+
+.monaco-workbench .monaco-button,
+.monaco-workbench .monaco-inputbox,
+.monaco-workbench .monaco-select-box,
+.monaco-workbench .monaco-dropdown-button {
+	border-radius: 6px !important;
+}
+.monaco-workbench .monaco-text-button { font-weight: 500; }
+
+/* Inset, rounded selection rows (sidebar, quick open, suggest). The transparent
+   side borders + padding-box clip give a floating "pill" like macOS sidebars. */
+.monaco-workbench .part.sidebar .monaco-list-row,
+.monaco-workbench .part.auxiliarybar .monaco-list-row,
+.quick-input-widget .monaco-list-row,
+.monaco-editor .suggest-widget .monaco-list-row {
+	box-sizing: border-box;
+	border-left: 6px solid transparent !important;
+	border-right: 6px solid transparent !important;
+	background-clip: padding-box;
+	border-radius: 12px;
+}
+
+/* ---- editor tabs: Safari-style floating pills ---------------------------- */
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab {
+	margin: 4px 0 4px 4px;
+	height: calc(var(--editor-group-tab-height) - 8px) !important;
+	border-radius: 7px;
+	border-right: none !important;
+	font-size: 12.5px;
+}
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {
+	box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab > .tab-border-top-container,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab > .tab-border-bottom-container {
+	display: none !important;
+}
+
+/* ---- activity bar: rounded square highlight instead of a side stripe ----- */
+.monaco-workbench .activitybar .monaco-action-bar .action-item .active-item-indicator:before {
+	display: none !important;
+}
+.monaco-workbench .activitybar .monaco-action-bar .action-item.checked .active-item-indicator {
+	top: 6px !important;
+	left: 8px !important;
+	width: calc(100% - 16px) !important;
+	height: calc(100% - 12px) !important;
+	border-radius: 8px;
+	background-color: var(--vscode-activityBar-activeBackground);
+}
+
+/* ---- title bar: pill search / command center ------------------------------ */
+.monaco-workbench .part.titlebar .command-center .command-center-center {
+	border-radius: 8px !important;
+}
+
+/* ---- depth: frosted glass on floating surfaces ---------------------------- */
+.quick-input-widget,
+.monaco-workbench .monaco-hover,
+.monaco-editor .suggest-widget,
+.monaco-editor .suggest-details,
+.monaco-workbench .notification-toast,
+.monaco-workbench .notifications-center,
+.context-view .monaco-menu-container,
+.monaco-workbench .editor-widget.find-widget {
+	-webkit-backdrop-filter: blur(24px) saturate(180%);
+	backdrop-filter: blur(24px) saturate(180%);
+	border-radius: 12px !important;
+	box-shadow: 0 0 0 0.5px var(--vscode-widget-border), 0 10px 40px rgba(0, 0, 0, 0.22) !important;
+	overflow: hidden;
+}
+.quick-input-widget { padding-bottom: 6px; }
+.quick-input-widget .quick-input-header { padding-top: 10px !important; }
+
+/* ---- scrollbars: slim rounded thumbs ------------------------------------- */
+.monaco-scrollable-element > .scrollbar > .slider {
+	box-sizing: border-box;
+	border: 3px solid transparent;
+	background-clip: padding-box;
+	border-radius: 10px;
+}

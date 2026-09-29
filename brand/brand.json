@@ -1,0 +1,22 @@
+{
+  "nameShort": "Briii Code",
+  "nameLong": "Briii Code",
+  "publisher": "Briii",
+  "applicationName": "briii",
+  "exeName": "Briii Code",
+  "dataFolderName": ".briii",
+  "sharedDataFolderName": ".briii-shared",
+  "win32MutexName": "briiicode",
+  "urlProtocol": "briii",
+  "win32AppUserModelId": "Briii.BriiiCode",
+  "win32RegValueName": "BriiiCode",
+  "ids": {
+    "_comment": "Never change these after the first install - Windows uses them to recognise upgrades.",
+    "win32x64AppId": "3879722D-84A7-411A-A123-C89B406257D8",
+    "win32x64UserAppId": "071F4B99-A81D-43B4-999B-B4C1763219D3",
+    "win32arm64AppId": "4565B6F8-E93B-4295-AF99-1161A909C0DD",
+    "win32arm64UserAppId": "A308F33B-AA9C-457B-BAB8-C6861A63CD10",
+    "contextMenuClsidX64": "030B9C28-3518-4841-A2EA-F29AD215E6DA",
+    "contextMenuClsidArm64": "50D25937-64AD-4E40-BEF4-2B086FBA66EA"
+  }
+}

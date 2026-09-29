@@ -1,0 +1,15 @@
+{
+	"workbench.colorTheme": "Briii Dark",
+	"window.autoDetectColorScheme": true,
+	"workbench.preferredDarkColorTheme": "Briii Dark",
+	"workbench.preferredLightColorTheme": "Briii Light",
+	"workbench.secondarySideBar.defaultVisibility": "hidden",
+	"workbench.tree.indent": 14,
+	"workbench.list.smoothScrolling": true,
+	"editor.fontFamily": "'Cascadia Code', Consolas, 'Courier New', monospace",
+	"editor.lineHeight": 1.6,
+	"editor.smoothScrolling": true,
+	"editor.cursorSmoothCaretAnimation": "on",
+	"editor.cursorBlinking": "smooth",
+	"terminal.integrated.fontFamily": "'Cascadia Mono', Consolas, monospace"
+}

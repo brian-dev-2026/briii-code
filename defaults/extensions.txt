@@ -1,0 +1,12 @@
+# Extensions bundled into the installer so they work offline from the first launch.
+# One Open VSX id per line: publisher.name  or  publisher.name@version
+# Browse ids at https://open-vsx.org
+
+# GitHub pull requests and issues in the sidebar (sign in via Accounts > Sign in with GitHub)
+GitHub.vscode-pull-request-github
+
+# Examples:
+# esbenp.prettier-vscode
+# dbaeumer.vscode-eslint
+# ms-python.python
+# PKief.material-icon-theme

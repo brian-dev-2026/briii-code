@@ -1,0 +1,34 @@
+# Build output
+.cache/
+out/
+
+# Local-only notes for Claude Code
+CLAUDE.md
+
+# Secrets and credentials - never publish
+.env
+.env.*
+*.pfx
+*.p12
+*.pem
+*.key
+*.cer
+*.crt
+*.spc
+*.pvk
+secrets/
+
+# Vercel project link (contains your org/project ids)
+.vercel/
+
+# Tooling and editor state
+node_modules/
+__pycache__/
+*.log
+*.part
+.vscode/
+.idea/
+
+# Windows
+Thumbs.db
+desktop.ini

@@ -8,7 +8,9 @@
 #>
 [CmdletBinding()]
 param(
-	[string]$Version = 'latest'
+	[string]$Version = 'latest',
+	# Release id shown to the updater, e.g. 1.135.06055-20261001.14 (CI). Local builds: <version>-local.
+	[string]$Release
 )
 
 $ErrorActionPreference = 'Stop'
@@ -101,7 +103,8 @@ if ($Version -eq 'latest') {
 	Step 'Looking up latest VSCodium release'
 	$Version = (Invoke-RestMethod 'https://api.github.com/repos/VSCodium/vscodium/releases/latest').tag_name
 }
-Step "Using VSCodium $Version"
+if (-not $Release) { $Release = "$Version-local" }
+Step "Using VSCodium $Version (release $Release)"
 
 $zipName = "VSCodium-win32-x64-$Version.zip"
 $zip = Join-Path $Cache "downloads\$zipName"
@@ -124,7 +127,7 @@ New-Item -ItemType Directory -Force $Stage | Out-Null
 Invoke-Native $Tar @('-xf', $zip, '-C', $Stage)
 
 Step 'Rebranding'
-Invoke-Native node @((Join-Path $PSScriptRoot 'rebrand.mjs'), $Stage, (Join-Path $Root 'brand\brand.json'), (Join-Path $Root 'defaults'))
+Invoke-Native node @((Join-Path $PSScriptRoot 'rebrand.mjs'), $Stage, (Join-Path $Root 'brand\brand.json'), (Join-Path $Root 'defaults'), $Release)
 
 $win32Res = Join-Path $Stage 'resources\app\resources\win32'
 Copy-Item (Join-Path $Icons 'app.ico') (Join-Path $win32Res 'code.ico') -Force
@@ -240,11 +243,11 @@ foreach ($p in $extPatches) {
 
 # --- installer -----------------------------------------------------------------------
 Step 'Building installer (this takes a few minutes)'
-$outBase = "$($Brand.exeName -replace '\s', '')-Setup-x64-$Version"
+$outBase = "$($Brand.exeName -replace '\s', '')-Setup-x64-$Release"
 $brandIss = Join-Path $Cache 'brand.iss'
 @"
 #define AppName "$($Brand.nameLong)"
-#define AppVersion "$Version"
+#define AppVersion "$Release"
 #define AppPublisher "$($Brand.publisher)"
 #define AppId "{{$($Brand.ids.win32x64AppId)}"
 #define AppMutex "$($Brand.win32MutexName)"
@@ -264,4 +267,4 @@ Invoke-Native $Iscc @('/Q', "/DBrandInclude=$brandIss", (Join-Path $Root 'instal
 $installer = Join-Path $OutDir "$outBase.exe"
 $sizeMb = [math]::Round((Get-Item $installer).Length / 1MB)
 Write-Host ''
-Write-Host "Built $installer ($sizeMb MB)" -ForegroundColor Green
+Write-Host "Built $installer ($sizeMb MB, release $Release)" -ForegroundColor Green

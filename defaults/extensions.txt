@@ -5,15 +5,11 @@
 # GitHub pull requests and issues in the sidebar (sign in via Accounts > Sign in with GitHub)
 GitHub.vscode-pull-request-github
 
-# AI coding assistant (sign in with your Claude account)
-anthropic.claude-code
-
 # Web developer starter pack
 esbenp.prettier-vscode
 dbaeumer.vscode-eslint
 bradlc.vscode-tailwindcss
 usernamehw.errorlens
-eamodio.gitlens
 dotenv.dotenv-vscode
 yoavbls.pretty-ts-errors
 

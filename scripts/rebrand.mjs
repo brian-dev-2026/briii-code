@@ -1,12 +1,12 @@
 // Rebrands an extracted VSCodium Windows build in place.
-// Usage: node rebrand.mjs <stageDir> <brand.json> <defaultsDir>
+// Usage: node rebrand.mjs <stageDir> <brand.json> <defaultsDir> <releaseId>
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const [stageDir, brandPath, defaultsDir] = process.argv.slice(2);
-if (!stageDir || !brandPath || !defaultsDir) {
-	console.error('usage: node rebrand.mjs <stageDir> <brand.json> <defaultsDir>');
+const [stageDir, brandPath, defaultsDir, releaseId] = process.argv.slice(2);
+if (!stageDir || !brandPath || !defaultsDir || !releaseId) {
+	console.error('usage: node rebrand.mjs <stageDir> <brand.json> <defaultsDir> <releaseId>');
 	process.exit(2);
 }
 
@@ -55,6 +55,9 @@ Object.assign(product, {
 	},
 	urlProtocol: brand.urlProtocol,
 	linuxIconName: brand.applicationName,
+	// Read by the briii-update extension: which build this is, and where releases come from.
+	briiiRelease: releaseId,
+	briiiUpdateRepo: brand.updateRepo,
 });
 // The built-in updater would replace Briii Code with stock VSCodium; updates come from rerunning build.ps1.
 delete product.updateUrl;
@@ -173,8 +176,21 @@ console.log(`Replaced ${replaced} "${oldName}" strings`);
 // --- Briii built-in extensions (themes, deploy) -----------------------------
 const brandExtDir = path.join(brandDir, 'extensions');
 for (const ext of fs.readdirSync(brandExtDir)) {
-	fs.cpSync(path.join(brandExtDir, ext), path.join(appDir, 'extensions', ext), { recursive: true });
+	const src = path.join(brandExtDir, ext);
+	fs.cpSync(src, path.join(appDir, 'extensions', ext), {
+		recursive: true,
+		filter: from => path.relative(src, from).split(path.sep)[0] !== 'test', // unit tests aren't shipped
+	});
 }
+
+// Extensions that can't be redistributed are installed from Open VSX on first launch instead.
+const readIdList = file => fs.existsSync(file)
+	? fs.readFileSync(file, 'utf8').split(/\r?\n/).map(l => l.replace(/#.*$/, '').trim()).filter(Boolean).map(l => l.split('@')[0])
+	: [];
+const firstLaunch = readIdList(path.join(defaultsDir, 'first-launch-extensions.txt'));
+const updateExtDir = path.join(appDir, 'extensions', 'briii-update');
+must(fs.existsSync(updateExtDir), 'brand/extensions/briii-update is missing');
+fs.writeFileSync(path.join(updateExtDir, 'first-launch.json'), JSON.stringify(firstLaunch, null, '\t') + '\n');
 
 // --- executable and visual elements manifest --------------------------------
 fs.renameSync(path.join(stageDir, oldExe), path.join(stageDir, newExe));

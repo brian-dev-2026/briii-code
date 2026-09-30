@@ -1,0 +1,10 @@
+# Extensions installed from Open VSX on first launch instead of being bundled.
+# Their licences don't allow public redistribution, and the installers are published on
+# GitHub Releases. Once installed, they update themselves like any other extension.
+# One Open VSX id per line: publisher.name  or  publisher.name@version
+
+# AI coding assistant (sign in with your Claude account). © Anthropic, all rights reserved.
+anthropic.claude-code
+
+# Git blame, history and more. Parts are under the GitLens Pro licence.
+eamodio.gitlens

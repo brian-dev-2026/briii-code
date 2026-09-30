@@ -10,6 +10,7 @@
   "urlProtocol": "briii",
   "win32AppUserModelId": "Briii.BriiiCode",
   "win32RegValueName": "BriiiCode",
+  "updateRepo": "brian-dev-2026/briii-code",
   "ids": {
     "_comment": "Never change these after the first install - Windows uses them to recognise upgrades.",
     "win32x64AppId": "3879722D-84A7-411A-A123-C89B406257D8",

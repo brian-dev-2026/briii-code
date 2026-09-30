@@ -201,6 +201,15 @@ async function run() {
 		return diag.message.slice(0, 60);
 	}, 150000);
 
+	await check('Python: basedpyright reports type errors', async () => {
+		fs.writeFileSync(file('bad.py'), 'n: int = "not a number"\n');
+		const doc = await vscode.workspace.openTextDocument(file('bad.py'));
+		await vscode.window.showTextDocument(doc);
+		const diag = await poll(() => vscode.languages.getDiagnostics(doc.uri).find(d => /basedpyright/i.test(d.source || '') && d.severity === vscode.DiagnosticSeverity.Error),
+			120000, 'basedpyright error diagnostic', 1000);
+		return diag.message.split('\n')[0].slice(0, 70);
+	}, 150000);
+
 	await check('Prettier: formats JavaScript on command', async () => {
 		const doc = await vscode.workspace.openTextDocument(file('fmt.js'));
 		await vscode.window.showTextDocument(doc);

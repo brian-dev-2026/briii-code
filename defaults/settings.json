@@ -17,5 +17,6 @@
 	"workbench.browser.openLocalhostLinks": true,
 	"workbench.welcomePage.extraAnnouncements": false,
 	"gitlens.advanced.skipOnboarding": true,
-	"gitlens.showWhatsNewAfterUpgrades": false
+	"gitlens.showWhatsNewAfterUpgrades": false,
+	"python.languageServer": "None"
 }

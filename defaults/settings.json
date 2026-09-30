@@ -18,5 +18,8 @@
 	"workbench.welcomePage.extraAnnouncements": false,
 	"gitlens.advanced.skipOnboarding": true,
 	"gitlens.showWhatsNewAfterUpgrades": false,
-	"python.languageServer": "None"
+	"python.languageServer": "None",
+	"[python]": { "editor.defaultFormatter": "charliermarsh.ruff" },
+	"code-runner.runInTerminal": true,
+	"code-runner.saveFileBeforeRun": true
 }

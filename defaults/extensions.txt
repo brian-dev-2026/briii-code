@@ -16,6 +16,15 @@ eamodio.gitlens
 dotenv.dotenv-vscode
 yoavbls.pretty-ts-errors
 
+# Everyday helpers: React snippets (rafce + Tab), paired tag rename, import path completion,
+# run the current file (Ctrl+Alt+N), .http API requests, and a TODO/FIXME panel
+dsznajder.es7-react-js-snippets
+formulahendry.auto-rename-tag
+christian-kohler.path-intellisense
+formulahendry.code-runner
+humao.rest-client
+Gruntfuggly.todo-tree
+
 # Detailed file and folder icons (the default icon theme)
 PKief.material-icon-theme
 
@@ -29,3 +38,5 @@ ms-python.python
 ms-python.debugpy
 ms-python.vscode-python-envs
 detachhead.basedpyright
+# Python formatter and linter (Prettier and ESLint for Python)
+charliermarsh.ruff

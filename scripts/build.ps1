@@ -152,6 +152,24 @@ foreach ($entry in $ids) {
 	Remove-Item $tmp -Recurse -Force
 }
 
+# Fixes for bundled extensions that look for files VS Code has since moved.
+# Todo Tree only registers its commands when it finds ripgrep, and it only knows the old paths.
+$extPatches = @(
+	@{ file = 'gruntfuggly.todo-tree\dist\extension.js'
+	   find = '"node_modules.asar.unpacked/@vscode/ripgrep/bin/"'
+	   replace = '"node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/win32-x64/"' }
+)
+foreach ($p in $extPatches) {
+	$path = Join-Path $Stage "resources\app\extensions\$($p.file)"
+	if (-not (Test-Path $path)) { continue }
+	$text = [IO.File]::ReadAllText($path)
+	if ($text.Contains($p.find)) {
+		[IO.File]::WriteAllText($path, $text.Replace($p.find, $p.replace), (New-Object Text.UTF8Encoding $false))
+	} else {
+		Write-Warning "Extension patch no longer matches: $($p.file)"
+	}
+}
+
 # --- installer -----------------------------------------------------------------------
 Step 'Building installer (this takes a few minutes)'
 $outBase = "$($Brand.exeName -replace '\s', '')-Setup-x64-$Version"

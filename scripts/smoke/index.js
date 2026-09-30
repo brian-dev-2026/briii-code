@@ -71,6 +71,8 @@ async function run() {
 			'gitlens.advanced.skipOnboarding': true,
 		};
 		const wrong = Object.entries(want).filter(([k, v]) => c.get(k) !== v).map(([k, v]) => `${k}=${JSON.stringify(c.get(k))} (want ${JSON.stringify(v)})`);
+		const pyFormatter = vscode.workspace.getConfiguration('editor', { languageId: 'python' }).get('defaultFormatter');
+		if (pyFormatter !== 'charliermarsh.ruff') wrong.push(`[python] editor.defaultFormatter=${JSON.stringify(pyFormatter)} (want "charliermarsh.ruff")`);
 		assert(!wrong.length, wrong.join('; '));
 	});
 
@@ -88,8 +90,8 @@ async function run() {
 
 	await check('extension commands registered', async () => {
 		const all = new Set(await vscode.commands.getCommands(true));
-		const exact = ['workbench.action.browser.open', 'briii.deploy', 'briii.deployPreview', 'briii.deployProduction', 'briii.showLastDeployment', 'claude-vscode.editor.open', 'editor.action.formatDocument', 'git.commit'];
-		const prefixes = ['gitlens.', 'eslint.', 'tailwindCSS.', 'errorLens.', 'pr.', 'prettier.'];
+		const exact = ['workbench.action.browser.open', 'briii.deploy', 'briii.deployPreview', 'briii.deployProduction', 'briii.showLastDeployment', 'claude-vscode.editor.open', 'editor.action.formatDocument', 'git.commit', 'code-runner.run', 'rest-client.request'];
+		const prefixes = ['gitlens.', 'eslint.', 'tailwindCSS.', 'errorLens.', 'pr.', 'prettier.', 'todo-tree.', 'ruff.'];
 		const missing = exact.filter(c => !all.has(c));
 		for (const p of prefixes) if (![...all].some(c => c.startsWith(p))) missing.push(`${p}*`);
 		assert(!missing.length, `missing: ${missing.join(', ')}`);
@@ -214,6 +216,18 @@ async function run() {
 		const doc = await vscode.workspace.openTextDocument(file('fmt.js'));
 		await vscode.window.showTextDocument(doc);
 		const want = 'const a = { b: 1, c: [1, 2, 3] };';
+		await poll(async () => {
+			await vscode.commands.executeCommand('editor.action.formatDocument');
+			return doc.getText().trim() === want;
+		}, 60000, `formatted text, got ${JSON.stringify(doc.getText())}`, 2000);
+		await vscode.commands.executeCommand('workbench.action.files.revert');
+	}, 90000);
+
+	await check('Ruff: formats Python on command', async () => {
+		fs.writeFileSync(file('fmt.py'), "x={'a':1,'b':[1,2]}\n");
+		const doc = await vscode.workspace.openTextDocument(file('fmt.py'));
+		await vscode.window.showTextDocument(doc);
+		const want = 'x = {"a": 1, "b": [1, 2]}';
 		await poll(async () => {
 			await vscode.commands.executeCommand('editor.action.formatDocument');
 			return doc.getText().trim() === want;

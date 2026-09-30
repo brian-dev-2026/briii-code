@@ -83,16 +83,26 @@ try {
 		exit 0
 	}
 
+	# /update=1: setup stages the files in <app>\_ and swaps them in once no instance runs (see
+	# setup.iss), so reopening the app meanwhile starts the old version, whole.
 	$code = -1
+	$reopened = $false
 	try {
-		$p = Start-Process $Installer -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-' -Wait -PassThru
+		$p = Start-Process $Installer -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', '/NOCLOSEAPPLICATIONS', '/update=1' -PassThru
+		$null = $p.Handle   # keeps the handle, so ExitCode is readable after exit
+		while (-not $p.HasExited) {
+			if (& $isRunning) { $reopened = $true }
+			Start-Sleep -Milliseconds 500
+		}
+		$p.WaitForExit()
 		$code = $p.ExitCode
 	} catch {
 		Write-HelperLog $StateDir "$Id could not start the installer: $($_.Exception.Message)"
 	}
 	Complete-Install $StateDir $Id $code
 	if ($code -eq 0) { Remove-Item $Installer -Force -ErrorAction SilentlyContinue }
-	if ($Relaunch) { Start-Process (Join-Path $AppDir "$ExeName.exe") }
+	# Someone opened the app during the update and has since closed it: don't pop it up again.
+	if ($Relaunch -and -not $reopened) { Start-Process (Join-Path $AppDir "$ExeName.exe") }
 } finally {
 	$lock.Dispose()
 }

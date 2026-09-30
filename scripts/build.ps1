@@ -260,6 +260,7 @@ $brandIss = Join-Path $Cache 'brand.iss'
 #define SourceDir "$Stage"
 #define OutputDir "$OutDir"
 #define OutputBaseFilename "$outBase"
+#define TopLevelItems "$((Get-ChildItem -LiteralPath $Stage -Force | ForEach-Object Name) -join '|')"
 "@ | Set-Content $brandIss -Encoding UTF8
 
 Invoke-Native $Iscc @('/Q', "/DBrandInclude=$brandIss", (Join-Path $Root 'installer\setup.iss'))

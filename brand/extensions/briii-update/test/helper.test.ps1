@@ -46,7 +46,17 @@ try {
 	& powershell -NoProfile -File (Join-Path $PSScriptRoot '..\install-on-exit.ps1') -Installer (Join-Path $dir 'none.exe') -AppDir (Split-Path $ps) -ExeName ([IO.Path]::GetFileNameWithoutExtension($ps)) -StateDir $dir -Id '1.0.0-20260101.1' -Relaunch -WaitSeconds 3
 	$sw.Stop()
 	Check 'a helper whose app stays open gives up after its wait' { $sw.Elapsed.TotalSeconds -lt 30 -and (Get-Content (Join-Path $dir 'install.log') -Raw) -match 'skipped: Briii Code still running' }
-	Check 'giving up is not counted as a failed install' { (Get-Content (Join-Path $dir 'state.json') -Raw | ConvertFrom-Json).failures -eq 1 }} finally {
+	Check 'giving up is not counted as a failed install' { (Get-Content (Join-Path $dir 'state.json') -Raw | ConvertFrom-Json).failures -eq 1 }
+
+	# A real run with a fake installer that records its arguments.
+	$fake = Join-Path $dir 'fake-setup.cmd'
+	[IO.File]::WriteAllText($fake, "@echo %* > `"$dir\args.txt`"`r`n")
+	Set-Content (Join-Path $dir 'state.json') '{"pending":{"id":"1.0.0-20260101.2","path":"x","sha256":"y"},"failures":0,"lastCheck":5}'
+	& powershell -NoProfile -File (Join-Path $PSScriptRoot '..\install-on-exit.ps1') -Installer $fake -AppDir (Join-Path $dir 'app') -ExeName 'briii-no-such-app' -StateDir $dir -Id '1.0.0-20260101.2' -WaitSeconds 5
+	$argsSeen = Get-Content (Join-Path $dir 'args.txt') -Raw -ErrorAction SilentlyContinue
+	Check 'the installer runs as a staged update, without closing apps' { $argsSeen -match '/update=1' -and $argsSeen -match '/NOCLOSEAPPLICATIONS' -and $argsSeen -match '/VERYSILENT' }
+	Check 'a successful run clears pending' { $null -eq (Get-Content (Join-Path $dir 'state.json') -Raw | ConvertFrom-Json).pending }
+} finally {
 	Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
 }
 if ($failed) { "$failed failed"; exit 1 }

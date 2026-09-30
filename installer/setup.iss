@@ -47,18 +47,21 @@ Name: "openwith"; Description: "&Register {#AppName} as an editor for supported 
 Name: "addtopath"; Description: "Add ""{#AppCli}"" to &PATH (available after restarting terminals)"; GroupDescription: "Other:"
 
 [InstallDelete]
-; Clear the previous version's files so upgrades never mix old and new code.
-Type: filesandordirs; Name: "{app}\resources"
-Type: filesandordirs; Name: "{app}\locales"
-Type: filesandordirs; Name: "{app}\bin"
-Type: filesandordirs; Name: "{app}\policies"
+; Clear the previous version's files so upgrades never mix old and new code. An /update=1 run
+; (briii-update) leaves them alone: it stages the new files in {app}\_ and swaps them in at the end.
+Type: filesandordirs; Name: "{app}\resources"; Check: not IsUpdate
+Type: filesandordirs; Name: "{app}\locales"; Check: not IsUpdate
+Type: filesandordirs; Name: "{app}\bin"; Check: not IsUpdate
+Type: filesandordirs; Name: "{app}\policies"; Check: not IsUpdate
+Type: filesandordirs; Name: "{app}\_"; Check: IsUpdate
+Type: filesandordirs; Name: "{app}\_old"; Check: IsUpdate
 
 [UninstallDelete]
 ; Downloaded updates (briii-update keeps them in %LOCALAPPDATA%\<AppName>\updates).
 Type: filesandordirs; Name: "{localappdata}\{#AppName}\updates"
 
 [Files]
-Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SourceDir}\*"; DestDir: "{code:FilesDir}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#ExeName}.exe"; AppUserModelID: "{#AppUserModelId}"
@@ -142,14 +145,127 @@ begin
   RegWriteExpandStringValue(EnvRoot, EnvKey, 'Path', Path);
 end;
 
+// ---- Staged updates --------------------------------------------------------------------------
+// briii-update runs setup with /update=1. The long copy then goes to <app>\_ while the installed
+// app stays whole, so reopening Briii Code during an update simply starts the old version. Once
+// no instance runs (its mutex is gone), the top-level items are swapped in by renames, which take
+// milliseconds; a failed rename puts everything back.
+var
+  SwapFailed: Boolean;
+
+function IsUpdate: Boolean;
+begin
+  Result := ExpandConstant('{param:update|0}') = '1';
+end;
+
+function FilesDir(Param: String): String;
+begin
+  if IsUpdate then Result := ExpandConstant('{app}\_') else Result := ExpandConstant('{app}');
+end;
+
+// The staged build's top-level files and folders, from build.ps1.
+function TopLevelItems: TArrayOfString;
+var
+  S: String;
+  P, N: Integer;
+begin
+  S := '{#TopLevelItems}' + '|';
+  N := 0;
+  SetArrayLength(Result, 0);
+  repeat
+    P := Pos('|', S);
+    if P > 1 then begin
+      SetArrayLength(Result, N + 1);
+      Result[N] := Copy(S, 1, P - 1);
+      N := N + 1;
+    end;
+    Delete(S, 1, P);
+  until S = '';
+end;
+
+procedure RemoveItem(Path: String);
+begin
+  if DirExists(Path) then DelTree(Path, True, True, True) else DeleteFile(Path);
+end;
+
+// Moves the staged items into <app>; returns False (and restores the old files) on any failure.
+function SwapStaged: Boolean;
+var
+  Items: TArrayOfString;
+  App, Staged, Old: String;
+  I, Done: Integer;
+begin
+  Result := True;
+  App := ExpandConstant('{app}');
+  Staged := App + '\_';
+  Old := App + '\_old';
+  ForceDirectories(Old);
+  Items := TopLevelItems;
+  Done := 0;
+  for I := 0 to GetArrayLength(Items) - 1 do begin
+    if FileExists(App + '\' + Items[I]) or DirExists(App + '\' + Items[I]) then
+      if not RenameFile(App + '\' + Items[I], Old + '\' + Items[I]) then begin
+        Result := False;
+        break;
+      end;
+    if not RenameFile(Staged + '\' + Items[I], App + '\' + Items[I]) then begin
+      RenameFile(Old + '\' + Items[I], App + '\' + Items[I]);
+      Result := False;
+      break;
+    end;
+    Done := I + 1;
+  end;
+  if not Result then begin
+    Log('Staged update: swap failed at ' + Items[Done] + ', restoring');
+    for I := Done - 1 downto 0 do begin
+      RenameFile(App + '\' + Items[I], Staged + '\' + Items[I]);
+      RenameFile(Old + '\' + Items[I], App + '\' + Items[I]);
+    end;
+  end;
+  DelTree(Old, True, True, True);
+  DelTree(Staged, True, True, True);
+end;
+
+procedure FinishStagedUpdate;
+var
+  Waited: Integer;
+begin
+  // Wait (silently, up to a day) while someone uses the old version; it keeps working meanwhile.
+  Waited := 0;
+  while CheckForMutexes('{#AppMutex}') and (Waited < 24 * 60 * 60) do begin
+    Sleep(1000);
+    Waited := Waited + 1;
+  end;
+  SwapFailed := CheckForMutexes('{#AppMutex}') or not SwapStaged;
+end;
+
+// Exit code 10: the staged update couldn't be swapped in; the installed version is unchanged.
+function GetCustomSetupExitCode: Integer;
+begin
+  if SwapFailed then Result := 10 else Result := 0;
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
-  if (CurStep = ssPostInstall) and WizardIsTaskSelected('addtopath') then
-    AddToPath(ExpandConstant('{app}\bin'));
+  if CurStep = ssPostInstall then begin
+    if IsUpdate then FinishStagedUpdate;
+    if WizardIsTaskSelected('addtopath') then AddToPath(ExpandConstant('{app}\bin'));
+  end;
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  Items: TArrayOfString;
+  I: Integer;
 begin
-  if CurUninstallStep = usPostUninstall then
+  if CurUninstallStep = usPostUninstall then begin
     RemoveFromPath(ExpandConstant('{app}\bin'));
+    // Files an update swapped in are logged under <app>\_, so remove the app's items by name.
+    Items := TopLevelItems;
+    for I := 0 to GetArrayLength(Items) - 1 do
+      if CompareText(Items[I], ExtractFileName(ExpandConstant('{uninstallexe}'))) <> 0 then
+        RemoveItem(ExpandConstant('{app}\') + Items[I]);
+    DelTree(ExpandConstant('{app}\_'), True, True, True);
+    DelTree(ExpandConstant('{app}\_old'), True, True, True);
+  end;
 end;

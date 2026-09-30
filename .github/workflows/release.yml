@@ -39,12 +39,12 @@ jobs:
         id: plan
         run: .\scripts\ci-release-plan.ps1 -Trigger '${{ github.event_name }}' -RunNumber ${{ github.run_number }} -Repo '${{ github.repository }}'
 
-      # A broken updater can't fix itself once released, so its tests gate every build.
-      - name: Test the updater
+      # A broken updater can't fix itself once released, so the built-in extensions' tests gate every build.
+      - name: Test built-in extensions
         if: steps.plan.outputs.build == 'true'
         run: |
-          Get-ChildItem brand\extensions\briii-update -Recurse -Filter *.js | ForEach-Object { node --check $_.FullName; if ($LASTEXITCODE) { exit 1 } }
-          node --test "brand/extensions/briii-update/test/*.test.js"
+          Get-ChildItem brand\extensions\briii-update, brand\extensions\briii-sync -Recurse -Filter *.js | ForEach-Object { node --check $_.FullName; if ($LASTEXITCODE) { exit 1 } }
+          node --test "brand/extensions/briii-update/test/*.test.js" "brand/extensions/briii-sync/test/*.test.js"
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           powershell -NoProfile -File brand\extensions\briii-update\test\helper.test.ps1
           if ($LASTEXITCODE) { exit $LASTEXITCODE }

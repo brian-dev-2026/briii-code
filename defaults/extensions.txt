@@ -37,10 +37,6 @@ alefragnani.project-manager
 # Detailed file and folder icons (the default icon theme)
 PKief.material-icon-theme
 
-# Settings Sync replacement: syncs settings and extensions through a Git repo or folder
-# (Command Palette > "Sync Settings: Open the repository settings"). cron-tasks is its dependency.
-zokugun.sync-settings
-zokugun.cron-tasks
 
 # Python. basedpyright replaces Pylance (Microsoft-only); see python.languageServer in settings.
 ms-python.python

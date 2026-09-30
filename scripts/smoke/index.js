@@ -80,7 +80,7 @@ async function run() {
 	});
 
 	await check('every bundled extension activates', async () => {
-		const ids = ['briii.briii-defaults', 'briii.briii-theme', 'briii.briii-deploy', 'briii.briii-update', 'vscode.git', 'vscode.typescript-language-features', 'ms-vscode.js-debug', ...expected];
+		const ids = ['briii.briii-defaults', 'briii.briii-theme', 'briii.briii-deploy', 'briii.briii-update', 'briii.briii-sync', 'vscode.git', 'vscode.typescript-language-features', 'ms-vscode.js-debug', ...expected];
 		const bad = [];
 		for (const id of ids) {
 			const ext = vscode.extensions.getExtension(id);
@@ -146,9 +146,55 @@ async function run() {
 		} finally { process.env.BRIII_UPDATE_FEED = before; f.close(); }
 	});
 
+	// Briii Sync against the in-memory Gist API from its unit tests (the repo is next to this file).
+	const { startFakeGist } = require(path.join(__dirname, '..', '..', 'brand', 'extensions', 'briii-sync', 'test', 'fakeGist.js'));
+	const gist = await startFakeGist();
+	process.env.BRIII_SYNC_API = gist.base;
+	process.env.BRIII_SYNC_TOKEN = gist.token;
+	const synced = () => [...gist.state.gists.values()].find(g => g.description === 'Briii Code settings');
+	let userDir;
+
+	await check('Briii Sync: Sync Up uploads settings, snippets and extensions, not secrets', async () => {
+		const first = await vscode.commands.executeCommand('briii.sync.up', { onConflict: 'cancel' });
+		assert(first && first.userDir, `no result: ${JSON.stringify(first)}`);
+		userDir = first.userDir;
+		const settingsFile = path.join(userDir, 'settings.json');
+		const existing = JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
+		const body = Object.entries({ ...existing, 'briii.test.token': 's3cret' }).map(([k, v]) => `\t${JSON.stringify(k)}: ${JSON.stringify(v)}`).join(',\n');
+		fs.writeFileSync(settingsFile, `{\n\t// kept by Briii Sync\n${body}\n}\n`);
+		fs.mkdirSync(path.join(userDir, 'snippets'), { recursive: true });
+		fs.writeFileSync(path.join(userDir, 'snippets', 'briii-smoke.code-snippets'), '{ "hi": { "prefix": "hi", "body": "hello" } }');
+		const r = await vscode.commands.executeCommand('briii.sync.up', { onConflict: 'cancel' });
+		assert(r.status === 'uploaded', `status ${JSON.stringify(r)}`);
+		const g = synced();
+		assert(g && g.public === false, 'no secret gist');
+		assert(!g.files['settings.json'].includes('s3cret'), 'the secret was uploaded');
+		assert(g.files['settings.json'].includes('// kept by Briii Sync'), 'comment lost on upload');
+		assert(g.files['snippets__briii-smoke.code-snippets'], 'snippet not uploaded');
+		assert(/anthropic\.claude-code/i.test(g.files['extensions.json']), `extensions: ${g.files['extensions.json']}`);
+		return `${Object.keys(g.files).length} files`;
+	});
+
+	await check('Briii Sync: Sync Down applies changes with a backup and keeps comments', async () => {
+		assert(userDir, 'Sync Up check did not run');
+		const g = synced();
+		g.files['settings.json'] = g.files['settings.json'].replace('// kept by Briii Sync', '// kept by Briii Sync\n\t"briii.test.value": "from-github",');
+		g.versions.push(`${g.id}-other`);
+		g.files['meta.json'] = JSON.stringify({ machine: 'OTHER-PC', time: new Date().toISOString(), format: 1 });
+		const r = await vscode.commands.executeCommand('briii.sync.down', { pick: 'default' });
+		assert(r.status === 'downloaded', `status ${JSON.stringify(r)}`);
+		const text = fs.readFileSync(path.join(userDir, 'settings.json'), 'utf8');
+		assert(text.includes('"briii.test.value": "from-github"'), 'new value not applied');
+		assert(text.includes('// kept by Briii Sync'), 'comment lost');
+		assert(text.includes('s3cret'), 'local secret lost');
+		assert(r.backup && fs.existsSync(path.join(r.backup, 'settings.json')), `no backup: ${r.backup}`);
+		const again = await vscode.commands.executeCommand('briii.sync.down', { pick: 'default' });
+		assert(again.status === 'nothing', `second Sync Down: ${JSON.stringify(again)}`);
+	});
+
 	await check('extension commands registered', async () => {
 		const all = new Set(await vscode.commands.getCommands(true));
-		const exact = ['workbench.action.browser.open', 'briii.deploy', 'briii.deployPreview', 'briii.deployProduction', 'briii.showLastDeployment', 'claude-vscode.editor.open', 'briii.update.check', 'briii.update.installNow', 'editor.action.formatDocument', 'git.commit', 'code-runner.run', 'rest-client.request'];
+		const exact = ['workbench.action.browser.open', 'briii.deploy', 'briii.deployPreview', 'briii.deployProduction', 'briii.showLastDeployment', 'claude-vscode.editor.open', 'briii.update.check', 'briii.update.installNow', 'briii.sync.up', 'briii.sync.down', 'briii.sync.showGist', 'briii.sync.openBackups', 'editor.action.formatDocument', 'git.commit', 'code-runner.run', 'rest-client.request'];
 		const prefixes = ['gitlens.', 'eslint.', 'tailwindCSS.', 'errorLens.', 'pr.', 'prettier.', 'todo-tree.', 'ruff.'];
 		const missing = exact.filter(c => !all.has(c));
 		for (const p of prefixes) if (![...all].some(c => c.startsWith(p))) missing.push(`${p}*`);

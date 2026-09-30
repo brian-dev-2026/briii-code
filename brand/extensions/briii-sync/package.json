@@ -1,0 +1,47 @@
+{
+	"name": "briii-sync",
+	"displayName": "Briii Sync",
+	"description": "Syncs settings, keybindings, snippets and extensions through a secret GitHub Gist. Secrets stay on this PC.",
+	"publisher": "briii",
+	"version": "1.0.0",
+	"license": "MIT",
+	"engines": { "vscode": "^1.80.0" },
+	"categories": ["Other"],
+	"main": "./extension.js",
+	"activationEvents": ["onStartupFinished"],
+	"capabilities": {
+		"untrustedWorkspaces": { "supported": true },
+		"virtualWorkspaces": true
+	},
+	"contributes": {
+		"commands": [
+			{ "command": "briii.sync.up", "title": "Sync Up (upload this PC's settings)", "category": "Briii Sync", "icon": "$(cloud-upload)" },
+			{ "command": "briii.sync.down", "title": "Sync Down (review and apply synced settings)", "category": "Briii Sync", "icon": "$(cloud-download)" },
+			{ "command": "briii.sync.showGist", "title": "Show Gist on GitHub", "category": "Briii Sync" },
+			{ "command": "briii.sync.openBackups", "title": "Open Backups Folder", "category": "Briii Sync" }
+		],
+		"configuration": {
+			"title": "Briii Sync",
+			"properties": {
+				"briii.sync.onStartup": {
+					"type": "string",
+					"enum": ["off", "ask", "pull"],
+					"default": "off",
+					"enumDescriptions": [
+						"Don't check on startup.",
+						"Check a minute after startup and offer to review changes made on another PC.",
+						"Check a minute after startup and apply changes made on another PC (with a backup). Deleted snippets are never removed automatically."
+					],
+					"description": "What Briii Sync does when Briii Code starts. Needs a GitHub sign-in; it never asks for one on startup."
+				},
+				"briii.sync.ignoredSettings": {
+					"type": "array",
+					"items": { "type": "string" },
+					"default": [],
+					"scope": "machine",
+					"markdownDescription": "Settings that are never uploaded, by exact key (e.g. `window.zoomLevel`). Settings whose names look like tokens, passwords, secrets or API keys are always left out."
+				}
+			}
+		}
+	}
+}

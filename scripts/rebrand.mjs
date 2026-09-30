@@ -70,7 +70,23 @@ function updateChecksum(rel) {
 }
 
 const cssRel = 'vs/workbench/workbench.desktop.main.css';
+const jsRel = 'vs/workbench/workbench.desktop.main.js';
+const jsPath = path.join(outDir, ...jsRel.split('/'));
 const uiCss = fs.readFileSync(path.join(brandDir, 'ui', 'apple.css'), 'utf8');
+
+// apple.css targets VS Code's internal class names. Warn about any that this VS Code no longer
+// has (neither its stylesheet nor its code mentions them), so a VSCodium update that renames
+// something shows up here instead of as a quietly broken look. verify.ps1 checks the same.
+const selectorClasses = css => [...new Set(css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\{[^{}]*\}/g, '{}')
+	.match(/\.[a-zA-Z_-][\w-]*/g) || [])].map(c => c.slice(1));
+{
+	const stockCss = fs.readFileSync(path.join(outDir, ...cssRel.split('/')), 'utf8');
+	const stockJs = fs.readFileSync(jsPath, 'utf8');
+	const stale = selectorClasses(uiCss).filter(c => !stockCss.includes(`.${c}`) && !stockJs.includes(c));
+	if (stale.length) {
+		console.warn(`WARNING: apple.css uses classes this VS Code no longer has: ${stale.join(', ')}`);
+	}
+}
 fs.appendFileSync(path.join(outDir, ...cssRel.split('/')), '\n' + uiCss);
 fs.copyFileSync(path.join(brandDir, 'ui', 'fonts', 'InterVariable.woff2'), path.join(mediaDir, 'briii-inter.woff2'));
 fs.copyFileSync(path.join(brandDir, 'ui', 'fonts', 'Inter-LICENSE.txt'), path.join(mediaDir, 'briii-inter-LICENSE.txt'));
@@ -78,9 +94,11 @@ updateChecksum(cssRel);
 
 // Built-in defaults that are read before extensions load (so defaults/settings.json is too late
 // for them). Each patch is optional: if VS Code changes the code, warn instead of failing.
-const jsRel = 'vs/workbench/workbench.desktop.main.js';
-const jsPath = path.join(outDir, ...jsRel.split('/'));
 const jsPatches = [{
+	what: 'use the modern UI (panels as floating, rounded cards)',
+	find: /("workbench\.experimental\.modernUI":\{type:"boolean",default:)!1/,
+	replace: '$1!0',
+}, {
 	what: 'hide the (chat) secondary side bar by default',
 	find: /("workbench\.secondarySideBar\.defaultVisibility":\{type:"string",enum:\[[^\]]*\],default:)"visibleInWorkspace"/,
 	replace: '$1"hidden"',
@@ -108,6 +126,23 @@ for (const patch of jsPatches) {
 }
 fs.writeFileSync(jsPath, js);
 updateChecksum(jsRel);
+
+// The startup splash redraws the layout saved by the previous session. After an upgrade from a
+// build without the modern UI, that layout is flat, so the window would open flat and then jump
+// to the cards. Drop saved layouts that aren't modern UI (as VS Code already does when developing
+// extensions); that launch shows only the background colour, and the next one draws cards again.
+const splashRel = 'vs/code/electron-browser/workbench/workbench.js';
+const splashPath = path.join(outDir, ...splashRel.split('/'));
+const splash = fs.readFileSync(splashPath, 'utf8');
+const splashFind = /([\w$]+)&&[\w$]+\.extensionDevelopmentPath&&\(\1\.layoutInfo=void 0\)/;
+if (splashFind.test(splash)) {
+	fs.writeFileSync(splashPath, splash.replace(splashFind,
+		(m, r) => `${m},${r}&&${r}.layoutInfo&&${r}.layoutInfo.modernUI!==!0&&(${r}.layoutInfo=void 0)`));
+	updateChecksum(splashRel);
+	console.log('Patched: ignore saved startup layouts from before the modern UI');
+} else {
+	console.warn('WARNING: could not patch the startup splash - pattern not found in this VS Code version');
+}
 
 fs.writeFileSync(productPath, JSON.stringify(product, null, '\t') + '\n');
 
@@ -148,7 +183,7 @@ const oldManifest = path.join(stageDir, `${path.parse(oldExe).name}.VisualElemen
 if (fs.existsSync(oldManifest)) {
 	const xml = fs.readFileSync(oldManifest, 'utf8')
 		.replace(/ShortDisplayName="[^"]*"/, `ShortDisplayName="${brand.nameShort}"`)
-		.replace(/BackgroundColor="[^"]*"/, 'BackgroundColor="#6366F1"');
+		.replace(/BackgroundColor="[^"]*"/, 'BackgroundColor="#080B14"'); // brand Ink, behind the ink tile
 	fs.rmSync(oldManifest);
 	fs.writeFileSync(path.join(stageDir, `${brand.exeName}.VisualElementsManifest.xml`), xml);
 }

@@ -114,7 +114,8 @@ async function pickTarget() {
 
 /** Makes sure the CLI is installed, logged in and the folder is linked. Returns true when ready. */
 async function preflight(cwd) {
-	const version = await run('--version', cwd);
+	// Each CLI call starts Node (a second or two), so run both checks at once.
+	const [version, whoami] = await Promise.all([run('--version', cwd), run('whoami', cwd)]);
 	if (version.code !== 0) {
 		const choice = await vscode.window.showWarningMessage(
 			'The Vercel CLI is not installed.', 'Install with npm', 'Learn more');
@@ -126,7 +127,6 @@ async function preflight(cwd) {
 		return false;
 	}
 
-	const whoami = await run('whoami', cwd);
 	if (whoami.code !== 0) {
 		const choice = await vscode.window.showInformationMessage(
 			'Log in to Vercel to deploy. Run the deploy again once you are logged in.', 'Log in');
@@ -173,6 +173,7 @@ async function deploy(context, prod) {
 		statusItem.text = `$(sync~spin) Deploying ${target}…`;
 		output.appendLine(`\n▲ ${new Date().toLocaleString()} - deploying ${cwd} (${target})`);
 
+		let cancelled = false;
 		const result = await vscode.window.withProgress({
 			location: vscode.ProgressLocation.Notification,
 			title: `Deploying to Vercel (${target})`,
@@ -185,10 +186,15 @@ async function deploy(context, prod) {
 					progress.report({ message: line.slice(0, 80) });
 				}
 			});
-			token.onCancellationRequested(() => kill(run.current));
+			token.onCancellationRequested(() => { cancelled = true; kill(run.current); });
 			return pending;
 		});
 
+		if (cancelled) {
+			output.appendLine('✗ Cancelled');
+			vscode.window.showInformationMessage('Vercel deploy cancelled.');
+			return;
+		}
 		const urls = result.stdout.match(/https:\/\/[^\s]+/g);
 		if (result.code !== 0 || !urls) {
 			const choice = await vscode.window.showErrorMessage(

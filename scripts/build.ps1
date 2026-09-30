@@ -30,11 +30,42 @@ function Invoke-Native {
 	if ($LASTEXITCODE -ne 0) { throw "$(Split-Path -Leaf $File) failed with exit code $LASTEXITCODE" }
 }
 
+# Downloads with Windows' curl.exe, which is much faster than Invoke-WebRequest in PowerShell 5.1.
+$Curl = Join-Path $env:SystemRoot 'System32\curl.exe'
+
 function Get-Download($Url, $Dest) {
 	if (Test-Path $Dest) { return }
 	$tmp = "$Dest.part"
-	Invoke-WebRequest -Uri $Url -OutFile $tmp -UseBasicParsing
+	Invoke-Native $Curl @('-fsSL', '--retry', '3', '-o', $tmp, $Url)
 	Move-Item $tmp $Dest -Force
+}
+
+# Downloads several files in parallel. $Jobs: @{ url; dest } items; existing files are skipped.
+# Returns a hashtable dest -> curl exit code (0 = downloaded). Failed downloads leave no file.
+function Get-Downloads($Jobs) {
+	$ErrorActionPreference = 'Continue'  # curl's stderr (e.g. a 404) must not throw in PS 5.1
+	$status = @{}
+	$todo = @($Jobs | Where-Object { -not (Test-Path $_.dest) })
+	foreach ($j in $Jobs) { $status[$j.dest] = 0 }
+	if (-not $todo) { return $status }
+	# In a curl config file a backslash escapes the next character, so use forward slashes.
+	$fwd = { param($p) $p -replace '\\', '/' }
+	$cfg = Join-Path $Cache 'curl-batch.txt'
+	$lines = foreach ($j in $todo) { "url = `"$($j.url)`""; "output = `"$(& $fwd "$($j.dest).part")`"" }
+	[IO.File]::WriteAllLines($cfg, [string[]]$lines)
+	$byPart = @{}
+	foreach ($j in $todo) { $byPart[(& $fwd "$($j.dest).part")] = $j.dest }
+	$report = & $Curl --parallel --parallel-max 8 -fsSL --retry 3 -w '%{exitcode}|%{filename_effective}\n' -K $cfg 2>$null
+	foreach ($line in $report) {
+		$code, $part = $line -split '\|', 2
+		$dest = $byPart[$part]
+		if (-not $dest) { continue }
+		$status[$dest] = [int]$code
+		if ([int]$code -eq 0) { Move-Item "$dest.part" $dest -Force }
+		elseif (Test-Path "$dest.part") { Remove-Item "$dest.part" -Force }
+	}
+	foreach ($j in $todo) { if (-not (Test-Path $j.dest) -and $status[$j.dest] -eq 0) { $status[$j.dest] = -1 } }
+	return $status
 }
 
 function Find-Iscc {
@@ -123,25 +154,57 @@ $ids = @()
 if (Test-Path $extList) {
 	$ids = Get-Content $extList | ForEach-Object { ($_ -replace '#.*$', '').Trim() } | Where-Object { $_ }
 }
-foreach ($entry in $ids) {
+$exts = foreach ($entry in $ids) {
 	$id, $extVersion = $entry -split '@', 2
 	if (-not $extVersion) { $extVersion = 'latest' }
 	$ns, $name = $id -split '\.', 2
 	if (-not $name) { throw "Bad extension id '$entry' in extensions.txt (expected publisher.name)" }
+	@{ entry = $entry; id = $id; ns = $ns; name = $name; version = $extVersion }
+}
+$dupes = @($exts | Group-Object { $_.id.ToLower() } | Where-Object Count -gt 1 | ForEach-Object Name)
+if ($dupes) { throw "Listed more than once in extensions.txt: $($dupes -join ', ')" }
 
-	Step "Bundling extension $id@$extVersion"
-	try {
-		$meta = Invoke-RestMethod "https://open-vsx.org/api/$ns/$name/win32-x64/$extVersion"
-	} catch {
-		try {
-			$meta = Invoke-RestMethod "https://open-vsx.org/api/$ns/$name/$extVersion"
-		} catch {
-			throw "Extension '$entry' not found on Open VSX (https://open-vsx.org/extension/$ns/$name)"
-		}
+# Look up every extension at once: the Windows x64 build if there is one, else the universal one.
+$metaDir = Join-Path $Cache 'extensions\meta'
+if (Test-Path $metaDir) { Remove-Item $metaDir -Recurse -Force }   # 'latest' must be looked up fresh
+New-Item -ItemType Directory $metaDir | Out-Null
+if ($exts) {
+	Step "Looking up $(@($exts).Count) extensions on Open VSX"
+	$metaJobs = foreach ($e in $exts) {
+		$e.metaTarget = Join-Path $metaDir "$($e.id).win32-x64.json"
+		$e.metaAny = Join-Path $metaDir "$($e.id).json"
+		@{ url = "https://open-vsx.org/api/$($e.ns)/$($e.name)/win32-x64/$($e.version)"; dest = $e.metaTarget }
+		@{ url = "https://open-vsx.org/api/$($e.ns)/$($e.name)/$($e.version)"; dest = $e.metaAny }
 	}
-	$vsixUrl = $meta.files.download
-	$vsix = Join-Path $Cache ("extensions\" + [IO.Path]::GetFileName(([uri]$vsixUrl).AbsolutePath))
-	Get-Download $vsixUrl $vsix
+	$metaStatus = Get-Downloads $metaJobs
+	foreach ($e in $exts) {
+		$file = @($e.metaTarget, $e.metaAny) | Where-Object { Test-Path $_ } | Select-Object -First 1
+		if (-not $file) {
+			$codes = "curl exit $($metaStatus[$e.metaTarget])/$($metaStatus[$e.metaAny]); 22 = not found, other codes = network error"
+			throw "Extension '$($e.entry)' could not be looked up on Open VSX ($codes). See https://open-vsx.org/extension/$($e.ns)/$($e.name)"
+		}
+		$e.url = ([IO.File]::ReadAllText($file) | ConvertFrom-Json).files.download
+		$e.vsix = Join-Path $Cache ("extensions\" + [IO.Path]::GetFileName(([uri]$e.url).AbsolutePath))
+	}
+
+	$missing = @($exts | Where-Object { -not (Test-Path $_.vsix) })
+	if ($missing) {
+		Step "Downloading $($missing.Count) extension(s): $(($missing | ForEach-Object { $_.id }) -join ', ')"
+		$vsixStatus = Get-Downloads ($missing | ForEach-Object { @{ url = $_.url; dest = $_.vsix } })
+		$failed = @($missing | Where-Object { -not (Test-Path $_.vsix) } | ForEach-Object { "$($_.id) (curl exit $($vsixStatus[$_.vsix]))" })
+		if ($failed) { throw "Download failed: $($failed -join ', '). Run again to retry." }
+	}
+
+	# Old versions pile up (Claude Code alone is >100 MB per release); keep only what this build uses.
+	$keep = @($exts | ForEach-Object { $_.vsix })
+	Get-ChildItem (Join-Path $Cache 'extensions') -Filter '*.vsix' |
+		Where-Object { $keep -notcontains $_.FullName } | Remove-Item -Force
+}
+
+foreach ($e in $exts) {
+	$ns, $name = $e.ns, $e.name
+	$vsix = $e.vsix
+	Step "Bundling extension $($e.id) ($([IO.Path]::GetFileNameWithoutExtension($vsix)))"
 
 	$tmp = Join-Path $Cache "extensions\unpack-$ns.$name"
 	if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
@@ -158,6 +221,11 @@ $extPatches = @(
 	@{ file = 'gruntfuggly.todo-tree\dist\extension.js'
 	   find = '"node_modules.asar.unpacked/@vscode/ripgrep/bin/"'
 	   replace = '"node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/win32-x64/"' }
+	# Project Manager opens a "What's New" tab on first launch and has no setting for it.
+	# Its "Project Manager: What's New" command still works.
+	@{ file = 'alefragnani.project-manager\dist\extension.js'
+	   find = 't.showPageInActivation(),'
+	   replace = '' }
 )
 foreach ($p in $extPatches) {
 	$path = Join-Path $Stage "resources\app\extensions\$($p.file)"

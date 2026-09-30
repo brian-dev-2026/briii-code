@@ -23,6 +23,10 @@ UninstallDisplayIcon={app}\{#ExeName}.exe
 UninstallDisplayName={#AppName}
 Compression=lzma2
 SolidCompression=yes
+; Compress in 4 parallel blocks in a 64-bit helper: ~2.5x faster (236 s -> 92 s) for ~1% larger
+; output. Each thread needs ~0.7 GB of RAM with lzma2/max.
+LZMAUseSeparateProcess=yes
+LZMANumBlockThreads=4
 WizardStyle=modern
 ChangesEnvironment=yes
 ChangesAssociations=yes

@@ -94,6 +94,27 @@
 	background-color: var(--vscode-activityBar-activeBackground);
 }
 
+/* ---- status bar: the Vercel deploy button is a small pill ------------------ */
+.monaco-workbench .part.statusbar .statusbar-item[id$="briii.deploy"] > .statusbar-item-label {
+	margin: 3px 0;
+	height: calc(100% - 6px);
+	border-radius: 99px;
+	padding: 0 10px;
+	background-color: var(--vscode-activityBarTop-activeBackground);
+	line-height: normal;
+	display: flex;
+	align-items: center;
+}
+
+/* ---- title bar: the menu is a single ☰ button ----------------------------- */
+/* The menu bar hides the words it has no room for; when not even one fits, it switches
+   itself to its built-in "overflow-menu-only" mode, a lone ☰ that opens the whole menu.
+   Capping its width triggers that. (menuBarVisibility "compact" would put ☰ in the
+   sidebar's icon row instead, and it would vanish with the sidebar.) */
+.monaco-workbench .part.titlebar .menubar {
+	max-width: 38px;
+}
+
 /* ---- title bar: pill search / command center ------------------------------ */
 .monaco-workbench .part.titlebar .command-center .command-center-center {
 	border-radius: 8px !important;

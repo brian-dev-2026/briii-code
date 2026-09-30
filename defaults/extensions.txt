@@ -1,5 +1,6 @@
 # Extensions bundled into the installer so they work offline from the first launch.
-# One Open VSX id per line: publisher.name  or  publisher.name@version# Browse ids at https://open-vsx.org
+# One Open VSX id per line: publisher.name  or  publisher.name@version
+# Browse ids at https://open-vsx.org
 
 # GitHub pull requests and issues in the sidebar (sign in via Accounts > Sign in with GitHub)
 GitHub.vscode-pull-request-github
@@ -24,6 +25,18 @@ christian-kohler.path-intellisense
 formulahendry.code-runner
 humao.rest-client
 Gruntfuggly.todo-tree
+
+# Easy coding: YAML and TOML with schema checks (GitHub Actions, docker-compose, pyproject),
+# GitHub Actions workflows, Vitest and Playwright tests in the Testing view, npm package
+# name completion in imports, coloured CSV columns, and a quick project switcher (Alt+Shift+P)
+redhat.vscode-yaml
+tamasfe.even-better-toml
+GitHub.vscode-github-actions
+vitest.explorer
+ms-playwright.playwright
+christian-kohler.npm-intellisense
+mechatroner.rainbow-csv
+alefragnani.project-manager
 
 # Detailed file and folder icons (the default icon theme)
 PKief.material-icon-theme

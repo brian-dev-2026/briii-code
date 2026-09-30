@@ -66,6 +66,10 @@ async function run() {
 			'workbench.colorTheme': 'Briii Dark',
 			'workbench.iconTheme': 'material-icon-theme',
 			'editor.defaultFormatter': 'esbenp.prettier-vscode',
+			'editor.formatOnSave': true,
+			'workbench.experimental.modernUI': true,
+			'explorer.fileNesting.enabled': true,
+			'redhat.telemetry.enabled': false,
 			'workbench.browser.openLocalhostLinks': true,
 			'workbench.welcomePage.extraAnnouncements': false,
 			'gitlens.advanced.skipOnboarding': true,
@@ -222,6 +226,17 @@ async function run() {
 		}, 60000, `formatted text, got ${JSON.stringify(doc.getText())}`, 2000);
 		await vscode.commands.executeCommand('workbench.action.files.revert');
 	}, 90000);
+
+	await check('Prettier: formats JavaScript on save', async () => {
+		fs.writeFileSync(file('save.js'), 'let s=1\n');
+		const doc = await vscode.workspace.openTextDocument(file('save.js'));
+		const editor = await vscode.window.showTextDocument(doc);
+		await editor.edit(e => e.insert(new vscode.Position(1, 0), 'const t={u:[1,2]}\n'));
+		await vscode.commands.executeCommand('workbench.action.files.save');
+		const want = 'let s = 1;\nconst t = { u: [1, 2] };';
+		await poll(() => fs.readFileSync(file('save.js'), 'utf8').replace(/\r\n/g, '\n').trim() === want, 20000,
+			`saved text, got ${JSON.stringify(fs.readFileSync(file('save.js'), 'utf8'))}`);
+	}, 60000);
 
 	await check('Ruff: formats Python on command', async () => {
 		fs.writeFileSync(file('fmt.py'), "x={'a':1,'b':[1,2]}\n");

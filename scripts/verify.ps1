@@ -147,6 +147,22 @@ try {
 		Assert ($css -match 'Briii Code - Apple-style UI') 'apple.css not appended'
 	}
 
+	Check 'apple.css only targets classes this VS Code has' {
+		# Same test as rebrand.mjs: every class in apple.css selectors must still exist in the
+		# stock stylesheet or code, or a VSCodium update has quietly broken part of the look.
+		$appDir = Join-Path $App 'resources\app'
+		$css = [IO.File]::ReadAllText((Join-Path $appDir 'out\vs\workbench\workbench.desktop.main.css'))
+		$js = [IO.File]::ReadAllText((Join-Path $appDir 'out\vs\workbench\workbench.desktop.main.js'))
+		$cut = $css.IndexOf('Briii Code - Apple-style UI')
+		$cut = $css.LastIndexOf('/*', $cut)
+		$stock, $ui = $css.Substring(0, $cut), $css.Substring($cut)
+		$selectors = [regex]::Replace([regex]::Replace($ui, '/\*[\s\S]*?\*/', ''), '\{[^{}]*\}', '{}')
+		$classes = [regex]::Matches($selectors, '\.[a-zA-Z_-][\w-]*') | ForEach-Object { $_.Value.Substring(1) } | Sort-Object -Unique
+		$stale = @($classes | Where-Object { -not $stock.Contains(".$_") -and -not $js.Contains($_) })
+		Assert (-not $stale) "not found in this VS Code: $($stale -join ', ')"
+		"($(@($classes).Count) classes)"
+	}
+
 	Check 'Briii artwork installed (icon, title bar, watermark, exe)' {
 		$appDir = Join-Path $App 'resources\app'
 		$same = { param($a, $b) (Get-FileHash $a).Hash -eq (Get-FileHash $b).Hash }

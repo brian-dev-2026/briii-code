@@ -67,6 +67,8 @@ async function run() {
 			'workbench.iconTheme': 'material-icon-theme',
 			'editor.defaultFormatter': 'esbenp.prettier-vscode',
 			'workbench.browser.openLocalhostLinks': true,
+			'workbench.welcomePage.extraAnnouncements': false,
+			'gitlens.advanced.skipOnboarding': true,
 		};
 		const wrong = Object.entries(want).filter(([k, v]) => c.get(k) !== v).map(([k, v]) => `${k}=${JSON.stringify(c.get(k))} (want ${JSON.stringify(v)})`);
 		assert(!wrong.length, wrong.join('; '));
@@ -296,6 +298,12 @@ async function run() {
 	await check('clipboard round trip', async () => {
 		await vscode.env.clipboard.writeText('briii-clip');
 		assert(await vscode.env.clipboard.readText() === 'briii-clip', 'clipboard text differs');
+	});
+
+	await check('first launch: no GitLens welcome tab', () => {
+		const gitlens = vscode.window.tabGroups.all.flatMap(g => g.tabs)
+			.filter(t => t.input instanceof vscode.TabInputWebview && /gitlens/i.test(t.input.viewType));
+		assert(!gitlens.length, `open: ${gitlens.map(t => t.label).join(', ')}`);
 	});
 
 	await vscode.commands.executeCommand('workbench.action.closeAllEditors');

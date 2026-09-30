@@ -92,6 +92,10 @@ const jsPatches = [{
 	what: 'use Material Icon Theme for files and folders from the first launch',
 	find: /(FILE_ICON_THEME=)"vs-seti"/,
 	replace: '$1"material-icon-theme"',
+}, {
+	what: 'stop the welcome page fetching VSCodium announcements',
+	find: /("workbench\.welcomePage\.extraAnnouncements":\{scope:\d+,type:"boolean",default:)!0/,
+	replace: '$1!1',
 }];
 let js = fs.readFileSync(jsPath, 'utf8');
 for (const patch of jsPatches) {

@@ -19,10 +19,18 @@ async function startFeed({ id, bytes = crypto.randomBytes(1024), badSha = false,
 	const name = `BriiiCode-Setup-x64-${id}.exe`;
 	const sha = crypto.createHash('sha256').update(badSha ? Buffer.from('other') : bytes).digest('hex');
 	const hits = {};
+	const ETAG = `"${id}"`;
 	const server = http.createServer((req, res) => {
 		hits[req.url] = (hits[req.url] || 0) + 1;
 		const base = `http://127.0.0.1:${server.address().port}`;
 		if (req.url === '/latest') {
+			if (req.headers['if-none-match'] === ETAG) {
+				hits.notModified = (hits.notModified || 0) + 1;
+				res.writeHead(304, { etag: ETAG });
+				res.end();
+				return;
+			}
+			res.setHeader('etag', ETAG);
 			res.setHeader('content-type', 'application/json');
 			res.end(JSON.stringify({
 				tag_name: `v${id}`,

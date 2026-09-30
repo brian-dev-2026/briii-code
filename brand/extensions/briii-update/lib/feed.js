@@ -18,13 +18,27 @@ async function hashFile(file) {
 	return hash.digest('hex');
 }
 
-/** @returns {Promise<{ id: string, installerUrl: string, shaUrl: string, pageUrl: string } | null>} */
-async function fetchLatest(feedUrl) {
-	const res = await fetch(feedUrl, { headers: HEADERS, signal: AbortSignal.timeout(FEED_TIMEOUT_MS) });
+/**
+ * The latest release. `cache` ({ etag, latest }, kept in state.json) is sent as If-None-Match and
+ * updated in place: GitHub answers 304 when nothing changed, which costs no rate limit.
+ * @returns {Promise<{ id: string, installerUrl: string, shaUrl: string, pageUrl: string } | null>}
+ */
+async function fetchLatest(feedUrl, cache = {}) {
+	const headers = cache.etag ? { ...HEADERS, 'if-none-match': cache.etag } : HEADERS;
+	const res = await fetch(feedUrl, { headers, signal: AbortSignal.timeout(FEED_TIMEOUT_MS) });
+	if (res.status === 304 && cache.etag) {
+		return cache.latest;
+	}
 	if (!res.ok) {
 		throw new Error(`release feed returned ${res.status}`);
 	}
-	const release = await res.json();
+	const latest = toLatest(await res.json());
+	cache.etag = res.headers.get('etag') || undefined;
+	cache.latest = latest;
+	return latest;
+}
+
+function toLatest(release) {
 	const id = String(release.tag_name || '').replace(/^v/, '');
 	const asset = name => (release.assets || []).find(a => a.name === name);
 	const exe = asset(`BriiiCode-Setup-x64-${id}.exe`);

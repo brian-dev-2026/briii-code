@@ -53,6 +53,10 @@ Type: filesandordirs; Name: "{app}\locales"
 Type: filesandordirs; Name: "{app}\bin"
 Type: filesandordirs; Name: "{app}\policies"
 
+[UninstallDelete]
+; Downloaded updates (briii-update keeps them in %LOCALAPPDATA%\<AppName>\updates).
+Type: filesandordirs; Name: "{localappdata}\{#AppName}\updates"
+
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 

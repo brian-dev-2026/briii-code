@@ -27,9 +27,17 @@ test('isNewer: the same id is not newer', () => {
 	assert.equal(isNewer('1.135.06055-20261001.9', '1.135.06055-20261001.9'), false);
 });
 
-test('isNewer: a newer VSCodium wins over a later date', () => {
-	assert.equal(isNewer('1.136.00100-20261001.1', '1.135.06055-20261009.1'), true);
-	assert.equal(isNewer('1.135.06055-20261009.1', '1.136.00100-20261001.1'), false);
+test('isNewer: a later release wins even when VSCodium went back (a pulled VSCodium release)', () => {
+	assert.equal(isNewer('1.135.06055-20261009.21', '1.136.00100-20261005.18'), true);
+	assert.equal(isNewer('1.136.00100-20261005.18', '1.135.06055-20261009.21'), false);
+});
+
+test('isNewer: VSCodium decides between two releases of the same day and run', () => {
+	assert.equal(isNewer('1.136.00100-20261001.1', '1.135.06055-20261001.1'), true);
+});
+
+test('isNewer: a local build of a newer VSCodium is not replaced by an older published one', () => {
+	assert.equal(isNewer('1.135.06055-20261001.1', '1.136.00100-local'), false);
 });
 
 test('isNewer: a published build is newer than a local build of the same VSCodium', () => {
@@ -59,4 +67,9 @@ test('effectiveMode: local builds only notify', () => {
 test('effectiveMode: all-users installs under Program Files only notify', () => {
 	assert.equal(effectiveMode({ ...base, appRoot: 'C:\\Program Files\\Briii Code' }), 'notify');
 	assert.equal(effectiveMode({ ...base, appRoot: 'c:\\program files\\Briii Code' }), 'notify');
+});
+
+test('effectiveMode: an install folder the user cannot write to only notifies', () => {
+	assert.equal(effectiveMode({ ...base, appRoot: 'D:\\Apps\\Briii Code', writable: false }), 'notify');
+	assert.equal(effectiveMode({ ...base, appRoot: 'D:\\Apps\\Briii Code', writable: true }), 'auto');
 });

@@ -29,3 +29,7 @@ test('helperCommandLine adds -Relaunch for Install Now', () => {
 test('helperCommandLine refuses values that would break the quoting', () => {
 	assert.throws(() => helperCommandLine({ ...base, appDir: 'C:\\bad"dir' }), /quote/);
 });
+
+test('helperCommandLine passes the app exe name, so the helper needs no hardcoded name', () => {
+	assert.ok(helperCommandLine({ ...base, exeName: 'Briii Code' }).includes(' -ExeName "Briii Code"'));
+});

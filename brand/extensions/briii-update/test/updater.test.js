@@ -107,3 +107,15 @@ test('checkForUpdate: drops a pending installer that is not newer than the runni
 	assert.equal(readState(dir).pending, null);
 	assert.equal(fs.existsSync(old), false);
 });
+
+test('checkForUpdate: a repeat check asks with the ETag and uses the 304 (no rate limit cost)', async t => {
+	const feed = await startFeed({ id: ID });
+	t.after(feed.close);
+	const dir = tempDir();
+	const args = { feedUrl: feed.url, dir, current: '1.135.06055-20261001.1', mode: 'auto' };
+	await checkForUpdate(args);
+	const r = await checkForUpdate(args);
+	assert.equal(r.status, 'ready');
+	assert.equal(r.id, ID);
+	assert.equal(feed.hits.notModified, 1);
+});

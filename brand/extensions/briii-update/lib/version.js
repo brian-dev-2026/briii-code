@@ -32,29 +32,37 @@ function compareParts(a, b) {
 	return 0;
 }
 
-/** True when `candidate` is a published build newer than `current`. */
+/**
+ * True when `candidate` is a published build newer than `current`. Published builds are ordered
+ * by release (date, then CI run), so a later build wins even if VSCodium pulled a release and
+ * went back a version. A local build is replaced only by a published build of the same or a
+ * newer VSCodium.
+ */
 function isNewer(candidate, current) {
 	const a = parseRelease(candidate);
 	const b = parseRelease(current);
 	if (!a || a.local || !b) {
 		return false;
 	}
-	return (compareParts(a.vscodium, b.vscodium) || a.date - b.date || a.run - b.run) > 0;
+	if (b.local) {
+		return compareParts(a.vscodium, b.vscodium) >= 0;
+	}
+	return (a.date - b.date || a.run - b.run || compareParts(a.vscodium, b.vscodium)) > 0;
 }
 
 /**
  * What the updater may do for this install:
  * 'off' when switched off or the build has no release id (dev runs),
- * 'notify' for local builds and all-users installs (a silent install would need admin rights),
- * otherwise the user's setting.
+ * 'notify' for local builds and all-users installs (a silent install would need admin rights:
+ * under Program Files, or any folder the user can't write to), otherwise the user's setting.
  */
-function effectiveMode({ mode, current, appRoot, programFiles }) {
+function effectiveMode({ mode, current, appRoot, programFiles, writable = true }) {
 	if (mode === 'off' || !parseRelease(current)) {
 		return 'off';
 	}
 	const underProgramFiles = programFiles && appRoot &&
 		appRoot.toLowerCase().startsWith(programFiles.toLowerCase().replace(/[\\/]*$/, '\\'));
-	if (parseRelease(current).local || underProgramFiles) {
+	if (parseRelease(current).local || underProgramFiles || !writable) {
 		return 'notify';
 	}
 	return mode === 'notify' ? 'notify' : 'auto';

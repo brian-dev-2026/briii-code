@@ -39,8 +39,17 @@ else {
 	elseif ($ageDays -ge $MaxAgeDays) { $reason = "last release is $([int]$ageDays) days old" }
 }
 
-$build = [bool]$reason
 $release = "$vscodium-$((Get-Date).ToUniversalTime().ToString('yyyyMMdd')).$RunNumber"
+# A re-run of a workflow keeps its run number: if that release was already published, don't
+# build it again (gh release create would fail on the existing tag).
+try {
+	Invoke-RestMethod "https://api.github.com/repos/$Repo/releases/tags/v$release" -Headers $headers | Out-Null
+	$reason = $null
+	$last = [pscustomobject]@{ tag_name = "v$release" }
+} catch {
+	if (-not ($_.Exception.Response -and [int]$_.Exception.Response.StatusCode -eq 404)) { throw }
+}
+$build = [bool]$reason
 if ($build) { Write-Host "Build: yes ($reason)" } else { Write-Host "Build: no (last release $($last.tag_name) is current)" }
 Write-Host "VSCodium $vscodium, release $release"
 

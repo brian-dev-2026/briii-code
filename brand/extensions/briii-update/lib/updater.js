@@ -32,7 +32,8 @@ async function check({ feedUrl, dir, current }) {
 			state.failures = 0;
 			writeState(dir, state);
 		}
-		const latest = await fetchLatest(feedUrl);
+		state.feed = state.feed || {};
+		const latest = await fetchLatest(feedUrl, state.feed);
 		state.lastCheck = Date.now();
 		if (!latest || !isNewer(latest.id, current)) {
 			writeState(dir, state);

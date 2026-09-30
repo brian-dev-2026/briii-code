@@ -7,16 +7,16 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { checkForUpdate } = require('./lib/updater');
-const { readState, writeState } = require('./lib/state');
+const { readState, writeState, trimLog, claimOnce } = require('./lib/state');
 const { effectiveMode, isNewer } = require('./lib/version');
 const firstLaunch = require('./lib/firstLaunch');
 const { helperCommandLine, startDetached } = require('./lib/helperLaunch');
+const { readyMessage } = require('./lib/messages');
 
 const FIRST_CHECK_MS = 30 * 1000;
 const CHECK_EVERY_MS = 6 * 60 * 60 * 1000;
 const MAX_FAILURES = 3;
 const DONE_KEY = 'briii.firstLaunch.done';
-const NOTIFIED_KEY = 'briii.update.notified';
 
 let context;
 let product;
@@ -28,7 +28,7 @@ let helperStarted = false; // Install Now already started one; Quit must not sta
 // Test hooks: BRIII_UPDATE_FEED / BRIII_UPDATE_DIR point the updater at a local server and a temp
 // folder. While a test feed is set, no installer is ever started unless BRIII_UPDATE_E2E=1.
 const updateDir = () => process.env.BRIII_UPDATE_DIR ||
-	path.join(process.env.LOCALAPPDATA || os.tmpdir(), 'Briii Code', 'updates');
+	path.join(process.env.LOCALAPPDATA || os.tmpdir(), product.nameLong, 'updates'); // setup.iss deletes it on uninstall
 const feedUrl = () => process.env.BRIII_UPDATE_FEED ||
 	`https://api.github.com/repos/${product.briiiUpdateRepo}/releases/latest`;
 const mayRunInstaller = () => !process.env.BRIII_UPDATE_FEED || process.env.BRIII_UPDATE_E2E === '1';
@@ -40,7 +40,24 @@ function mode() {
 		current: product.briiiRelease,
 		appRoot: installDir(),
 		programFiles: process.env.ProgramFiles,
+		writable: canWrite(installDir()),
 	});
+}
+
+/** Whether this user can write to the install folder (a silent update needs that). */
+let writableCache;
+function canWrite(dir) {
+	if (writableCache === undefined) {
+		const probe = path.join(dir, `.briii-write-test-${process.pid}`);
+		try {
+			fs.writeFileSync(probe, '');
+			fs.rmSync(probe, { force: true });
+			writableCache = true;
+		} catch {
+			writableCache = false;
+		}
+	}
+	return writableCache;
 }
 
 function log(line) {
@@ -70,6 +87,7 @@ function activate(ctx) {
 	);
 
 	finishPreviousInstall();
+	trimLog(updateDir());
 	installFirstLaunchExtensions();
 	if (product.briiiRelease) {
 		timers.push(setTimeout(() => runCheck(false), FIRST_CHECK_MS));
@@ -104,12 +122,15 @@ async function installFirstLaunchExtensions() {
 	}
 	await vscode.window.withProgress({
 		location: vscode.ProgressLocation.Notification,
-		title: 'Setting up Briii Code: installing Claude Code and GitLens',
-	}, async () => {
+		title: `Setting up ${product.nameLong}: installing extensions`,
+	}, async progress => {
 		const installed = await firstLaunch.run({
 			ids,
 			isInstalled: id => !!vscode.extensions.getExtension(id),
-			install: id => vscode.commands.executeCommand('workbench.extensions.installExtension', id),
+			install: id => {
+				progress.report({ message: id });
+				return vscode.commands.executeCommand('workbench.extensions.installExtension', id);
+			},
 			done,
 			markDone: id => done.add(id),
 		});
@@ -129,7 +150,7 @@ async function runCheck(manual) {
 	} else if (result.status === 'ready') {
 		log(`Briii Code ${result.id} is downloaded and verified.`);
 	}
-	statusItem.tooltip = result.id ? `Briii Code ${result.id} installs when you close the app` : undefined;
+	statusItem.tooltip = result.id ? readyMessage(m, result.id) : undefined;
 	if (result.status === 'ready' && m !== 'off') {
 		statusItem.show();
 	} else {
@@ -166,13 +187,11 @@ async function runCheck(manual) {
 	return result;
 }
 
+/** Shows a notification once, in one window only (several windows check on their own). */
 function notifyOnce(key, text, buttons, onChoice) {
-	const seen = context.globalState.get(NOTIFIED_KEY, []);
-	if (seen.includes(key)) {
-		return;
+	if (claimOnce(updateDir(), key)) {
+		vscode.window.showInformationMessage(text, ...buttons).then(onChoice);
 	}
-	context.globalState.update(NOTIFIED_KEY, [...seen, key].slice(-20));
-	vscode.window.showInformationMessage(text, ...buttons).then(onChoice);
 }
 
 async function showReady() {
@@ -180,8 +199,7 @@ async function showReady() {
 	if (!state.pending) {
 		return;
 	}
-	const choice = await vscode.window.showInformationMessage(
-		`Briii Code ${state.pending.id} is ready. It installs when you close the app.`, 'Install Now (restarts)');
+	const choice = await vscode.window.showInformationMessage(readyMessage(mode(), state.pending.id), 'Install Now (restarts)');
 	if (choice) {
 		await installNow();
 	}
@@ -204,6 +222,9 @@ async function installNow() {
 		return;
 	}
 	startHelper(state.pending, true);
+	// If the quit is cancelled (unsaved changes), that helper gives up after 60 s; after that a
+	// normal close starts a fresh one again.
+	setTimeout(() => { helperStarted = false; }, 70 * 1000);
 	await vscode.commands.executeCommand('workbench.action.quit');
 }
 
@@ -212,6 +233,7 @@ function startHelper(pending, relaunch) {
 	const ok = startDetached(helperCommandLine({
 		script: path.join(context.extensionPath, 'install-on-exit.ps1'),
 		installer: pending.path, appDir: installDir(), stateDir: updateDir(), id: pending.id, relaunch,
+		exeName: appExeName(),
 	}));
 	// Also on disk: during shutdown the output channel may already be gone.
 	fs.appendFileSync(path.join(updateDir(), 'install.log'),
@@ -219,6 +241,12 @@ function startHelper(pending, relaunch) {
 	helperStarted = helperStarted || ok;
 	log(ok ? `Installing ${pending.id} after Briii Code closes.` : `Couldn't start the update helper for ${pending.id}.`);
 	return ok;
+}
+
+/** The app's exe name (the extension host runs as it), when it really is in the install folder. */
+function appExeName() {
+	const name = path.basename(process.execPath, '.exe');
+	return fs.existsSync(path.join(installDir(), `${name}.exe`)) ? name : undefined;
 }
 
 function deactivate() {

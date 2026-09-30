@@ -51,7 +51,7 @@ jobs:
 
       - name: Install Inno Setup
         if: steps.plan.outputs.build == 'true'
-        run: choco install innosetup -y --no-progress
+        run: choco install innosetup --version 6.7.1 -y --no-progress   # pinned: build.ps1 looks for Inno Setup 6
 
       - name: Build
         if: steps.plan.outputs.build == 'true'
@@ -69,7 +69,7 @@ jobs:
           $exe = Join-Path $PWD "out\$name"
           $sha = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
           [IO.File]::WriteAllText("$exe.sha256", "$sha  $name`n", (New-Object Text.UTF8Encoding $false))
-          gh release create "v$id" $exe "$exe.sha256" --title "Briii Code $id" --notes "Built from VSCodium ${{ steps.plan.outputs.vscodium }}. Installs itself automatically in Briii Code; or download and run the installer." --latest
+          gh release create "v$id" $exe "$exe.sha256" --title "Briii Code $id" --notes "Built from VSCodium ${{ steps.plan.outputs.vscodium }}. Installs itself automatically in Briii Code; or download and run the installer." --target $env:GITHUB_SHA --latest
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
       - name: Keep the newest 10 releases

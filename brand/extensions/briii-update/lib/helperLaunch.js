@@ -16,10 +16,13 @@ const quote = value => {
 };
 
 /** The helper's command line. Every value is quoted; Windows paths never contain a double quote. */
-function helperCommandLine({ script, installer, appDir, stateDir, id, relaunch }) {
+function helperCommandLine({ script, installer, appDir, stateDir, id, exeName, relaunch }) {
 	const parts = ['powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass',
 		`-File ${quote(script)}`, `-Installer ${quote(installer)}`, `-AppDir ${quote(appDir)}`,
 		`-StateDir ${quote(stateDir)}`, `-Id ${quote(id)}`];
+	if (exeName) {
+		parts.push(`-ExeName ${quote(exeName)}`);
+	}
 	if (relaunch) {
 		parts.push('-Relaunch');
 	}

@@ -350,13 +350,18 @@ try {
 
 	$uninstaller = Join-Path $App 'unins000.exe'
 	if (Test-Path $uninstaller) {
-		Check 'silent uninstall' {
+		Check 'silent uninstall (also removes downloaded updates)' {
+			# Only this verify copy is installed (checked at the start), so the folder is ours to fill.
+			$updates = Join-Path $env:LOCALAPPDATA "$($Brand.nameLong)\updates"
+			New-Item -ItemType Directory -Force $updates | Out-Null
+			[IO.File]::WriteAllText((Join-Path $updates 'verify-marker.exe'), 'x')
 			$p = Start-Process $uninstaller -Wait -PassThru -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'
 			Assert ($p.ExitCode -eq 0) "uninstaller exit code $($p.ExitCode)"
 			# The uninstaller finishes deleting itself from a temp copy; give it a moment.
 			for ($i = 0; $i -lt 20 -and (Test-Path $exe); $i++) { Start-Sleep -Milliseconds 500 }
 			Assert (-not (Test-Path $exe)) 'app files still present'
 			Assert (-not (Test-Path "HKCU:\$uninstallKey")) 'uninstall entry still registered'
+			Assert (-not (Test-Path $updates)) 'updates folder still present'
 		}
 	}
 	Remove-Item $Work -Recurse -Force -ErrorAction SilentlyContinue

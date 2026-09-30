@@ -1,0 +1,69 @@
+# Builds Briii Code and publishes the installer as a GitHub Release, which the in-app updater
+# (brand/extensions/briii-update) installs automatically. scripts/ci-release-plan.ps1 decides
+# whether a build is due: new VSCodium release, last release 7+ days old, a push, or a manual run.
+name: Release
+
+on:
+  schedule:
+    - cron: '0 5 * * *'
+  push:
+    branches: [main]
+    paths:
+      - 'brand/**'
+      - 'defaults/**'
+      - 'installer/**'
+      - 'scripts/**'
+      - '.github/workflows/release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: powershell   # Windows PowerShell 5.1, like local builds
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Decide whether to build
+        id: plan
+        run: .\scripts\ci-release-plan.ps1 -Trigger '${{ github.event_name }}' -RunNumber ${{ github.run_number }} -Repo '${{ github.repository }}'
+
+      - name: Install Inno Setup
+        if: steps.plan.outputs.build == 'true'
+        run: choco install innosetup -y --no-progress
+
+      - name: Build
+        if: steps.plan.outputs.build == 'true'
+        run: .\scripts\build.ps1 -Version '${{ steps.plan.outputs.vscodium }}' -Release '${{ steps.plan.outputs.release }}'
+
+      - name: Verify (install, branding, checksums, extensions, uninstall)
+        if: steps.plan.outputs.build == 'true'
+        run: .\scripts\verify.ps1 -NoGui
+
+      - name: Publish release
+        if: steps.plan.outputs.build == 'true'
+        run: |
+          $id = '${{ steps.plan.outputs.release }}'
+          $name = "BriiiCode-Setup-x64-$id.exe"
+          $exe = Join-Path $PWD "out\$name"
+          $sha = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+          [IO.File]::WriteAllText("$exe.sha256", "$sha  $name`n", (New-Object Text.UTF8Encoding $false))
+          gh release create "v$id" $exe "$exe.sha256" --title "Briii Code $id" --notes "Built from VSCodium ${{ steps.plan.outputs.vscodium }}. Installs itself automatically in Briii Code; or download and run the installer." --latest
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+      - name: Keep the newest 10 releases
+        if: steps.plan.outputs.build == 'true'
+        run: |
+          $old = gh release list --limit 100 --json tagName,publishedAt --jq 'sort_by(.publishedAt) | reverse | .[10:][] | .tagName'
+          foreach ($tag in $old) { if ($tag) { gh release delete $tag --yes --cleanup-tag } }

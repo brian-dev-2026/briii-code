@@ -59,13 +59,24 @@ function pruneBackups(backupRoot) {
 	}
 }
 
+/** Writes via a temp file and a rename, so a failed write never leaves half a file. */
+function atomicWrite(file, content) {
+	const tmp = `${file}.briii-sync.tmp`;
+	try {
+		fs.writeFileSync(tmp, content);
+		fs.renameSync(tmp, file);
+	} finally {
+		fs.rmSync(tmp, { force: true });
+	}
+}
+
 /**
  * Writes the changes (content null deletes). Every touched file that exists is copied to a new
- * backup folder first. If a write fails, everything written so far is put back and the error
- * names the file.
+ * backup folder first. If a write fails, every touched file (the failing one too) is put back
+ * and the error names the file. `write` is replaceable for tests.
  * @returns {{ backup: string }}
  */
-function applyChanges(userDir, backupRoot, changes) {
+function applyChanges(userDir, backupRoot, changes, { write = atomicWrite } = {}) {
 	const backup = newBackupDir(backupRoot);
 	const previous = new Map(); // gist name -> old content, or null when the file didn't exist
 	for (const { name } of changes) {
@@ -89,16 +100,20 @@ function applyChanges(userDir, backupRoot, changes) {
 				fs.rmSync(file, { force: true });
 			} else {
 				fs.mkdirSync(path.dirname(file), { recursive: true });
-				fs.writeFileSync(file, content);
+				write(file, content);
 			}
 			done.push(name);
 		} catch (err) {
-			for (const n of done) {
+			for (const n of [...done, name]) {
 				const old = previous.get(n);
-				if (old === null) {
-					fs.rmSync(localPath(userDir, n), { force: true });
-				} else {
-					fs.writeFileSync(localPath(userDir, n), old);
+				try {
+					if (old === null) {
+						fs.rmSync(localPath(userDir, n), { force: true });
+					} else {
+						fs.writeFileSync(localPath(userDir, n), old);
+					}
+				} catch {
+					// still in the backup folder
 				}
 			}
 			throw new Error(`Couldn't write ${name}: ${err.message}. Nothing was changed.`);

@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { planDown, planUp, isConflict, sameText } = require('../lib/plan');
+const { planDown, planUp, isConflict, sameText, sameContent } = require('../lib/plan');
 
 const byName = items => Object.fromEntries(items.map(i => [i.name, i]));
 
@@ -151,4 +151,28 @@ test('sameContent ignores whitespace and trailing commas but not comments or val
 	assert.equal(sameContent('{ "a": 1 }', '{ "a": 2 }'), false);
 	assert.equal(sameContent('{ // note\n "a": 1 }', '{ "a": 1 }'), false);
 	assert.equal(sameContent(undefined, '{}'), false);
+});
+
+test('planDown only writes known file names (review: README, path tricks)', () => {
+	const { items } = planDown({
+		local: {},
+		remote: { 'README.md': '# hi', 'snippets__..\\..\\evil.json': '{}', 'snippets__ok.json': '{}', 'notes.json': '{}' },
+		localExtensions: [],
+		ignored: [],
+	});
+	assert.deepEqual(items.map(i => i.name), ['snippets__ok.json']);
+});
+
+test('sameContent treats CRLF inside block comments like LF', () => {
+	assert.equal(sameContent('{\r\n/* a\r\n b */\r\n"x": 1 }', '{\n/* a\n b */\n"x": 1 }'), true);
+});
+
+test('localChangedSince: unsynced local edits are detected, secrets and line endings ignored', () => {
+	const { localChangedSince, snapshotHashes } = require('../lib/plan');
+	const synced = { 'settings.json': '{ "a": 1, "github.token": "x" }', 'keybindings.json': '[]' };
+	const hashes = snapshotHashes(synced, []);
+	assert.equal(localChangedSince({ 'settings.json': '{ "a": 1, "github.token": "changed" }', 'keybindings.json': '[]\r\n' }, hashes, []), false);
+	assert.equal(localChangedSince({ 'settings.json': '{ "a": 2 }', 'keybindings.json': '[]' }, hashes, []), true);
+	assert.equal(localChangedSince({ 'settings.json': synced['settings.json'] }, hashes, []), true);
+	assert.equal(localChangedSince(synced, undefined, []), true);
 });

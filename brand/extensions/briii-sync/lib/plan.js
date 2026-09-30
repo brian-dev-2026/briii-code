@@ -2,6 +2,7 @@
 // a Sync Up would send, and whether uploading would overwrite another PC's work.
 'use strict';
 
+const crypto = require('crypto');
 const jsonc = require('./vendor/jsonc-parser/main');
 const { stripSecrets, restoreSecrets } = require('./settings');
 
@@ -9,6 +10,8 @@ const MUST_PARSE = ['settings.json', 'keybindings.json', 'extensions.json'];
 const META = 'meta.json';
 const EXTENSIONS = 'extensions.json';
 const SNIPPET = /^snippets__/;
+// The only Gist files ever written to disk. A snippet name is one plain file name.
+const WRITABLE = /^(settings\.json|keybindings\.json|snippets__(?!.*\.\.)[^\\/:*?"<>|]+\.(json|code-snippets))$/i;
 
 const normalize = s => s.replace(/\r\n/g, '\n').replace(/\n+$/, '');
 
@@ -28,7 +31,7 @@ function tokens(text) {
 		if ((k === 2 /* CloseBrace */ || k === 4 /* CloseBracket */) && out.length && out[out.length - 1].startsWith('5:') /* CommaToken */) {
 			out.pop();
 		}
-		out.push(`${k}:${s.getTokenValue()}`);
+		out.push(`${k}:${s.getTokenValue().replace(/\r\n/g, '\n')}`);
 	}
 	return out;
 }
@@ -71,6 +74,9 @@ function planDown({ local, remote, localExtensions, ignored }) {
 			const have = new Set(localExtensions.map(id => id.toLowerCase()));
 			extensions = extensionIds(text).filter(id => !have.has(id.toLowerCase()));
 			continue;
+		}
+		if (!WRITABLE.test(name)) {
+			continue; // README.md added on github.com, or a name that would escape the user folder
 		}
 		const mine = local[name];
 		if (name === 'settings.json') {
@@ -127,6 +133,26 @@ function planUp({ local, remote, localExtensions, ignored, meta }) {
 	return { patch, removedSecrets };
 }
 
+/** Per-file hashes of what was synced (settings without secrets; whitespace doesn't count). */
+function snapshotHashes(files, ignored) {
+	const out = {};
+	for (const [name, text] of Object.entries(files)) {
+		const content = name === 'settings.json' ? stripSecrets(text, ignored).text : text;
+		out[name] = crypto.createHash('sha256').update(tokens(content).join('\u0000')).digest('hex');
+	}
+	return out;
+}
+
+/** True when this PC's files changed since the hashes were taken (or nothing was recorded). */
+function localChangedSince(files, hashes, ignored) {
+	if (!hashes) {
+		return true;
+	}
+	const now = snapshotHashes(files, ignored);
+	const names = new Set([...Object.keys(now), ...Object.keys(hashes)]);
+	return [...names].some(n => now[n] !== hashes[n]);
+}
+
 /** True when uploading would overwrite a version another PC wrote and this one never saw. */
 function isConflict({ lastVersion, remoteVersion, remoteMachine, machine }) {
 	if (!remoteVersion || remoteVersion === lastVersion) {
@@ -135,4 +161,4 @@ function isConflict({ lastVersion, remoteVersion, remoteMachine, machine }) {
 	return remoteMachine !== machine;
 }
 
-module.exports = { planDown, planUp, isConflict, sameText, sameContent };
+module.exports = { planDown, planUp, isConflict, sameText, sameContent, snapshotHashes, localChangedSince };

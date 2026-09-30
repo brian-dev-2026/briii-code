@@ -82,3 +82,22 @@ test('applyChanges keeps the newest 10 backups', () => {
 	}
 	assert.equal(fs.readdirSync(backups).length, 10);
 });
+
+test('applyChanges puts back a file whose write fails halfway (review)', () => {
+	const user = tempDir();
+	fs.writeFileSync(path.join(user, 'settings.json'), 'old settings');
+	fs.writeFileSync(path.join(user, 'keybindings.json'), 'old keys');
+	const halfway = (file, content) => {
+		if (file.endsWith('keybindings.json')) {
+			fs.writeFileSync(file, '');
+			throw new Error('disk full');
+		}
+		fs.writeFileSync(file, content);
+	};
+	assert.throws(() => applyChanges(user, tempDir(), [
+		{ name: 'settings.json', content: 'new settings' },
+		{ name: 'keybindings.json', content: 'new keys' },
+	], { write: halfway }), /keybindings\.json/);
+	assert.equal(fs.readFileSync(path.join(user, 'keybindings.json'), 'utf8'), 'old keys');
+	assert.equal(fs.readFileSync(path.join(user, 'settings.json'), 'utf8'), 'old settings');
+});

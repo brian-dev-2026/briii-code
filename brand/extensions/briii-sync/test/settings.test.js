@@ -58,3 +58,33 @@ test('isSecretKey matches secret-looking names only', () => {
 	}
 	assert.equal(isSecretKey('window.zoomLevel', ['window.zoomLevel']), true);
 });
+
+test('stripSecrets catches credentials under other names (review: leaks)', () => {
+	const text = JSON.stringify({
+		'http.proxyAuthorization': 'Basic abc',
+		'rest-client.defaultHeaders': { 'User-Agent': 'x', Authorization: 'Bearer t1' },
+		'terminal.integrated.env.windows': { OPENAI_KEY: 'sk-1' },
+		'claudeCode.environmentVariables': [{ name: 'ANTHROPIC_API_KEY', value: 'sk-ant-2' }, { name: 'DEBUG', value: '1' }],
+		'editor.fontSize': 14,
+	}, null, '\t');
+	const r = stripSecrets(text, []);
+	for (const s of ['Basic abc', 'Bearer t1', 'sk-1', 'sk-ant-2']) {
+		assert.ok(!r.text.includes(s), `${s} leaked`);
+	}
+	assert.match(r.text, /"editor.fontSize": 14/);
+	assert.match(r.text, /"DEBUG"/);
+});
+
+test('stripSecrets leaves out machine-scoped settings passed as ignored keys', () => {
+	const r = stripSecrets('{ "git.path": "C:\\\\git\\\\bin\\\\git.exe", "editor.tabSize": 2 }', ['git.path']);
+	assert.deepEqual(r.removed, ['git.path']);
+});
+
+test('restoreSecrets matches array entries by name, not position', () => {
+	const local = JSON.stringify({ 'sqltools.connections': [{ name: 'a', password: 'P1' }, { name: 'b', password: 'P2' }] });
+	const reordered = JSON.stringify({ 'sqltools.connections': [{ name: 'b' }, { name: 'a' }] });
+	const out = JSON.parse(restoreSecrets(reordered, local, []))['sqltools.connections'];
+	assert.deepEqual(out, [{ name: 'b', password: 'P2' }, { name: 'a', password: 'P1' }]);
+	const shorter = JSON.stringify({ 'sqltools.connections': [{ name: 'a' }] });
+	assert.deepEqual(JSON.parse(restoreSecrets(shorter, local, []))['sqltools.connections'], [{ name: 'a', password: 'P1' }]);
+});

@@ -9,9 +9,10 @@ const os = require('os');
 const path = require('path');
 const { readSnapshot, applyChanges, localPath } = require('./lib/files');
 const gist = require('./lib/gist');
-const { planDown, planUp, isConflict } = require('./lib/plan');
+const { planDown, planUp, isConflict, snapshotHashes, localChangedSince } = require('./lib/plan');
 
 const LAST_VERSION = 'briii.sync.lastVersion';
+const LAST_LOCAL = 'briii.sync.lastLocalHashes'; // what this PC's files were at the last sync
 const SECRETS_NOTICE = 'briii.sync.secretsNoticeShown';
 const STARTUP_DELAY_MS = 60 * 1000;
 const SCHEME = 'briii-sync';
@@ -21,8 +22,33 @@ const virtualDocs = new Map();
 
 const userDir = () => path.resolve(context.globalStorageUri.fsPath, '..', '..'); // …\User\globalStorage\<ext>
 const backupRoot = () => path.join(context.globalStorageUri.fsPath, 'backups');
-const machine = () => os.hostname();
-const ignored = () => vscode.workspace.getConfiguration('briii.sync').get('ignoredSettings', []);
+const machine = () => os.hostname(); // shown to people
+// Conflicts are decided by machine id: cloned PCs often share a hostname.
+const machineId = () => (vscode.env.machineId && !/^someValue/.test(vscode.env.machineId) ? vscode.env.machineId : os.hostname());
+
+/**
+ * Settings that never leave this PC by key: the user's list, and every setting an extension
+ * declares machine-scoped (paths, environment, credentials), as VS Code's own sync does.
+ */
+function ignored() {
+	const keys = new Set(vscode.workspace.getConfiguration('briii.sync').get('ignoredSettings', []));
+	for (const ext of vscode.extensions.all) {
+		const conf = ext.packageJSON && ext.packageJSON.contributes && ext.packageJSON.contributes.configuration;
+		for (const section of [].concat(conf || [])) {
+			for (const [key, schema] of Object.entries((section && section.properties) || {})) {
+				if (schema && (schema.scope === 'machine' || schema.scope === 'machine-overridable')) {
+					keys.add(key);
+				}
+			}
+		}
+	}
+	return [...keys];
+}
+
+/** Remembers what this PC's files are right after a sync, so "pull" can tell unsynced edits. */
+function rememberLocal() {
+	return context.globalState.update(LAST_LOCAL, snapshotHashes(readSnapshot(userDir()).files, ignored()));
+}
 
 function product() {
 	try {
@@ -83,7 +109,7 @@ function syncUp(opts = {}) {
 		const found = await gist.findGist(a);
 		const remote = found ? await gist.getGist(a, found.id) : null;
 		const meta = remote ? parseMeta(remote.files) : {};
-		if (isConflict({ lastVersion: context.globalState.get(LAST_VERSION), remoteVersion: remote && remote.version, remoteMachine: meta.machine, machine: machine() })) {
+		if (isConflict({ lastVersion: context.globalState.get(LAST_VERSION), remoteVersion: remote && remote.version, remoteMachine: meta.machineId || meta.machine, machine: machineId() })) {
 			const choice = opts.onConflict || await vscode.window.showWarningMessage(
 				`Your synced settings were changed on ${meta.machine || 'another PC'} (${when(meta.time)}). Uploading replaces them.`,
 				{ modal: true }, 'Overwrite', 'Sync Down First')
@@ -100,11 +126,12 @@ function syncUp(opts = {}) {
 			remote: remote ? remote.files : {},
 			localExtensions: localExtensions(),
 			ignored: ignored(),
-			meta: { machine: machine(), time: new Date().toISOString(), briiiRelease: product().briiiRelease, format: 1 },
+			meta: { machine: machine(), machineId: machineId(), time: new Date().toISOString(), briiiRelease: product().briiiRelease, format: 1 },
 		});
 		if (!Object.keys(patch).length) {
 			if (remote) {
 				await context.globalState.update(LAST_VERSION, remote.version);
+				await rememberLocal();
 			}
 			if (!opts.onConflict) {
 				vscode.window.showInformationMessage('Briii Sync: already up to date on GitHub.');
@@ -115,6 +142,7 @@ function syncUp(opts = {}) {
 			? await gist.updateGist(a, remote.id, patch)
 			: await gist.createGist(a, Object.fromEntries(Object.entries(patch).filter(([, c]) => c !== null)));
 		await context.globalState.update(LAST_VERSION, result.version);
+		await rememberLocal();
 		if (removedSecrets.length && !context.globalState.get(SECRETS_NOTICE)) {
 			await context.globalState.update(SECRETS_NOTICE, true);
 			vscode.window.showInformationMessage(`Briii Sync kept these settings on this PC (they look like secrets): ${removedSecrets.join(', ')}.`);
@@ -199,6 +227,7 @@ function syncDown(opts = {}) {
 		const plan = planDown({ local: readSnapshot(userDir()).files, remote: remote.files, localExtensions: localExtensions(), ignored: ignored() });
 		if (!plan.items.length && !plan.extensions.length) {
 			await context.globalState.update(LAST_VERSION, remote.version);
+			await rememberLocal();
 			if (!opts.pick) {
 				vscode.window.showInformationMessage('Briii Sync: already in sync.');
 			}
@@ -224,6 +253,7 @@ function syncDown(opts = {}) {
 			}
 		}
 		await context.globalState.update(LAST_VERSION, remote.version);
+		await rememberLocal();
 		const summary = [chosen.items.length && `${chosen.items.length} file(s)`, installed.length && `${installed.length} extension(s)`].filter(Boolean).join(' and ');
 		if (summary) {
 			vscode.window.showInformationMessage(`Briii Sync: applied ${summary} from ${meta.machine || 'GitHub'}.`, 'Open Backups Folder')
@@ -249,7 +279,8 @@ async function startupCheck() {
 		if (!plan.items.some(i => i.picked) && !plan.extensions.length) {
 			return;
 		}
-		if (mode === 'pull') {
+		// "pull" never throws away edits made on this PC since the last sync: then it asks instead.
+		if (mode === 'pull' && !localChangedSince(readSnapshot(userDir()).files, context.globalState.get(LAST_LOCAL), ignored())) {
 			await syncDown({ pick: 'default', silent: true });
 			return;
 		}

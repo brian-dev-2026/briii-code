@@ -9,17 +9,33 @@ param(
 	[switch]$DotSourceOnly
 )
 
-# Several windows closing each start a helper; only the first one proceeds.
+# Several windows closing each start a helper; only one proceeds. The lock is an open, unshared
+# handle: taking it is atomic, and it is released when the helper ends, however it ends.
+# Returns the handle (keep it until done) or $null when another helper holds it.
 function Enter-HelperLock([string]$StateDir) {
-	$lock = Join-Path $StateDir 'helper.lock'
-	if ((Test-Path $lock) -and (Get-Item $lock).LastWriteTime -gt (Get-Date).AddMinutes(-35)) { return $false }
-	[IO.File]::WriteAllText($lock, "$PID")
-	return $true
+	try {
+		return [IO.File]::Open((Join-Path $StateDir 'helper.lock'), 'OpenOrCreate', 'ReadWrite', 'None')
+	} catch {
+		return $null
+	}
+}
+
+# True while Windows is shutting down or signing out: an installer killed halfway would leave
+# Briii Code unable to start, so the update waits for the next close.
+function Test-SessionEnding {
+	if (-not ('BriiiUpdate.Native' -as [type])) {
+		Add-Type -Namespace BriiiUpdate -Name Native -MemberDefinition '[DllImport("user32.dll")] public static extern int GetSystemMetrics(int index);'
+	}
+	return [BriiiUpdate.Native]::GetSystemMetrics(0x2000) -ne 0   # SM_SHUTTINGDOWN
+}
+
+function Write-HelperLog([string]$StateDir, [string]$Line) {
+	Add-Content (Join-Path $StateDir 'install.log') "$((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')) $Line"
 }
 
 # Logs the result and updates state.json (no BOM, the extension reads it with JSON.parse).
 function Complete-Install([string]$StateDir, [string]$Id, [int]$ExitCode) {
-	Add-Content (Join-Path $StateDir 'install.log') "$((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')) $Id exit=$ExitCode"
+	Write-HelperLog $StateDir "$Id exit=$ExitCode"
 	$file = Join-Path $StateDir 'state.json'
 	$state = Get-Content $file -Raw | ConvertFrom-Json
 	if ($ExitCode -eq 0) {
@@ -33,7 +49,8 @@ function Complete-Install([string]$StateDir, [string]$Id, [int]$ExitCode) {
 
 if ($DotSourceOnly) { return }
 
-if (-not (Enter-HelperLock $StateDir)) { exit 0 }
+$lock = Enter-HelperLock $StateDir
+if (-not $lock) { exit 0 }
 try {
 	# Inherited from the extension host: they would make Briii Code start as plain Node.
 	foreach ($n in @(Get-ChildItem env: | Where-Object { $_.Name -eq 'ELECTRON_RUN_AS_NODE' -or $_.Name -like 'VSCODE_*' } | ForEach-Object Name)) {
@@ -41,15 +58,23 @@ try {
 	}
 	$deadline = (Get-Date).AddMinutes(30)
 	$prefix = $AppDir.TrimEnd('\') + '\'
-	do {
-		$running = @(Get-Process -Name 'Briii Code' -ErrorAction SilentlyContinue |
-			Where-Object { $_.Path -and $_.Path.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase) })
-		if (-not $running) { break }
-		Start-Sleep -Seconds 2
-	} while ((Get-Date) -lt $deadline)
-	if ($running) {
-		Add-Content (Join-Path $StateDir 'install.log') "$((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')) $Id skipped: Briii Code still running after 30 minutes"
+	$isRunning = {
+		@(Get-Process -Name 'Briii Code' -ErrorAction SilentlyContinue |
+			Where-Object { $_.Path -and $_.Path.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase) }).Count -gt 0
+	}
+	# Wait until the app has been closed for 3 s in a row, so a quick reopen isn't caught mid-install.
+	$quiet = 0
+	while ($quiet -lt 3 -and (Get-Date) -lt $deadline) {
+		if (& $isRunning) { $quiet = 0 } else { $quiet++ }
+		Start-Sleep -Seconds 1
+	}
+	if (& $isRunning) {
+		Write-HelperLog $StateDir "$Id skipped: Briii Code still running after 30 minutes"
 		exit 1
+	}
+	if (Test-SessionEnding) {
+		Write-HelperLog $StateDir "$Id skipped: Windows is shutting down"
+		exit 0
 	}
 
 	$code = -1
@@ -57,11 +82,11 @@ try {
 		$p = Start-Process $Installer -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-' -Wait -PassThru
 		$code = $p.ExitCode
 	} catch {
-		Add-Content (Join-Path $StateDir 'install.log') "$((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')) $Id could not start the installer: $($_.Exception.Message)"
+		Write-HelperLog $StateDir "$Id could not start the installer: $($_.Exception.Message)"
 	}
 	Complete-Install $StateDir $Id $code
 	if ($code -eq 0) { Remove-Item $Installer -Force -ErrorAction SilentlyContinue }
 	if ($Relaunch) { Start-Process (Join-Path $AppDir 'Briii Code.exe') }
 } finally {
-	Remove-Item (Join-Path $StateDir 'helper.lock') -Force -ErrorAction SilentlyContinue
+	$lock.Dispose()
 }

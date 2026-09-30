@@ -70,3 +70,40 @@ test('readState: defaults when the file is missing or broken', () => {
 	fs.writeFileSync(path.join(dir, 'state.json'), '{not json');
 	assert.deepEqual(readState(dir), { pending: null, failures: 0, lastCheck: 0 });
 });
+
+test('checkForUpdate: overlapping checks share one download', async t => {
+	const feed = await startFeed({ id: ID });
+	t.after(feed.close);
+	const dir = tempDir();
+	const args = { feedUrl: feed.url, dir, current: '1.135.06055-20261001.1', mode: 'auto' };
+	const [a, b] = await Promise.all([checkForUpdate(args), checkForUpdate(args)]);
+	assert.equal(a.status, 'ready');
+	assert.equal(b.status, 'ready');
+	assert.equal(feed.hits['/blob'], 1);
+});
+
+test('checkForUpdate: a pending installer that changed on disk is downloaded again', async t => {
+	const feed = await startFeed({ id: ID });
+	t.after(feed.close);
+	const dir = tempDir();
+	const args = { feedUrl: feed.url, dir, current: '1.135.06055-20261001.1', mode: 'auto' };
+	await checkForUpdate(args);
+	fs.writeFileSync(readState(dir).pending.path, 'damaged');
+	const r = await checkForUpdate(args);
+	assert.equal(r.status, 'ready');
+	assert.equal(feed.hits['/blob'], 2);
+	assert.deepEqual(fs.readFileSync(readState(dir).pending.path), feed.bytes);
+});
+
+test('checkForUpdate: drops a pending installer that is not newer than the running build', async t => {
+	const feed = await startFeed({ id: ID });
+	t.after(feed.close);
+	const dir = tempDir();
+	const old = path.join(dir, '1.135.06055-20261001.5.exe');
+	fs.writeFileSync(old, 'older');
+	fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify({ pending: { id: '1.135.06055-20261001.5', path: old, sha256: 'x' }, failures: 1, lastCheck: 0 }));
+	const r = await checkForUpdate({ feedUrl: feed.url, dir, current: ID, mode: 'auto' });
+	assert.equal(r.status, 'none');
+	assert.equal(readState(dir).pending, null);
+	assert.equal(fs.existsSync(old), false);
+});

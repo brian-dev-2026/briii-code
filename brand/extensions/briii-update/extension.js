@@ -8,7 +8,7 @@ const os = require('os');
 const path = require('path');
 const { checkForUpdate } = require('./lib/updater');
 const { readState, writeState } = require('./lib/state');
-const { effectiveMode } = require('./lib/version');
+const { effectiveMode, isNewer } = require('./lib/version');
 const firstLaunch = require('./lib/firstLaunch');
 const { helperCommandLine, startDetached } = require('./lib/helperLaunch');
 
@@ -23,6 +23,7 @@ let product;
 let output;
 let statusItem;
 const timers = [];
+let helperStarted = false; // Install Now already started one; Quit must not start a second
 
 // Test hooks: BRIII_UPDATE_FEED / BRIII_UPDATE_DIR point the updater at a local server and a temp
 // folder. While a test feed is set, no installer is ever started unless BRIII_UPDATE_E2E=1.
@@ -76,12 +77,11 @@ function activate(ctx) {
 	}
 }
 
-/** After an update the app starts on the pending version: record that and tidy up. */
+/** Drops a pending installer that isn't newer than this build (it was updated, or updated by hand). */
 function finishPreviousInstall() {
 	const dir = updateDir();
 	const state = readState(dir);
-	if (state.pending && state.pending.id === product.briiiRelease) {
-		log(`Updated to ${product.briiiRelease}.`);
+	if (state.pending && !isNewer(state.pending.id, product.briiiRelease)) {
 		fs.rmSync(state.pending.path, { force: true });
 		writeState(dir, { ...state, pending: null, failures: 0 });
 	}
@@ -200,6 +200,9 @@ async function installNow() {
 		vscode.window.showInformationMessage('Test mode: the installer is not started.');
 		return;
 	}
+	if (!isNewer(state.pending.id, product.briiiRelease)) {
+		return;
+	}
 	startHelper(state.pending, true);
 	await vscode.commands.executeCommand('workbench.action.quit');
 }
@@ -213,16 +216,17 @@ function startHelper(pending, relaunch) {
 	// Also on disk: during shutdown the output channel may already be gone.
 	fs.appendFileSync(path.join(updateDir(), 'install.log'),
 		`${new Date().toISOString()} ${pending.id} helper ${ok ? 'started' : 'FAILED to start'}\n`);
+	helperStarted = helperStarted || ok;
 	log(ok ? `Installing ${pending.id} after Briii Code closes.` : `Couldn't start the update helper for ${pending.id}.`);
 	return ok;
 }
 
 function deactivate() {
-	if (!product) {
+	if (!product || helperStarted) {
 		return;
 	}
 	const state = readState(updateDir());
-	if (state.pending && fs.existsSync(state.pending.path) && mode() === 'auto' &&
+	if (state.pending && isNewer(state.pending.id, product.briiiRelease) && fs.existsSync(state.pending.path) && mode() === 'auto' &&
 		state.failures < MAX_FAILURES && mayRunInstaller()) {
 		startHelper(state.pending, false);
 	}

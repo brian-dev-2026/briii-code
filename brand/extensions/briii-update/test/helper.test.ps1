@@ -11,10 +11,12 @@ function Check($name, [scriptblock]$test) {
 $dir = Join-Path $env:TEMP "briii-helper-test-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
 New-Item -ItemType Directory $dir | Out-Null
 try {
-	Check 'the first helper gets the lock' { Enter-HelperLock -StateDir $dir }
-	Check 'a second helper does not while the lock is fresh' { -not (Enter-HelperLock -StateDir $dir) }
-	(Get-Item (Join-Path $dir 'helper.lock')).LastWriteTime = (Get-Date).AddMinutes(-36)
-	Check 'a lock older than 35 minutes is taken over' { Enter-HelperLock -StateDir $dir }
+	$lock = Enter-HelperLock -StateDir $dir
+	Check 'the first helper gets the lock' { $null -ne $lock }
+	Check 'a second helper does not while the first holds it' { $null -eq (Enter-HelperLock -StateDir $dir) }
+	$lock.Dispose()
+	Check 'a lock file left by a helper that ended is taken over' { $l = Enter-HelperLock -StateDir $dir; $ok = $null -ne $l; if ($l) { $l.Dispose() }; $ok }
+	Check 'no install is attempted while Windows is not shutting down' { (Test-SessionEnding) -eq $false }
 
 	Set-Content (Join-Path $dir 'state.json') '{"pending":{"id":"1.0.0-20260101.1","path":"x","sha256":"y"},"failures":1,"lastCheck":5}'
 	Complete-Install -StateDir $dir -Id '1.0.0-20260101.1' -ExitCode 0

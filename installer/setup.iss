@@ -31,6 +31,8 @@ WizardStyle=modern
 ChangesEnvironment=yes
 ChangesAssociations=yes
 AppMutex={#AppMutex}
+; A second setup (an update helper racing a manual install) aborts instead of overwriting files mid-copy.
+SetupMutex={#AppMutex}-setup
 CloseApplications=yes
 RestartApplications=no
 

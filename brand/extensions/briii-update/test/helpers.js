@@ -11,11 +11,11 @@ const path = require('path');
  * Starts a fake release feed. Paths:
  *   /latest            release JSON for `id` (installer asset redirects like GitHub's)
  *   /asset/<name>.exe  302 -> /blob
- *   /blob              the installer bytes (or a truncated body when truncate is set)
+ *   /blob              the installer bytes (a truncated body with truncate, headers only with stall)
  *   /asset/<name>.exe.sha256  hex digest (wrong when badSha is set)
  * Returns { url, hits, close }; hits counts requests per path.
  */
-async function startFeed({ id, bytes = crypto.randomBytes(1024), badSha = false, truncate = false }) {
+async function startFeed({ id, bytes = crypto.randomBytes(1024), badSha = false, truncate = false, stall = false }) {
 	const name = `BriiiCode-Setup-x64-${id}.exe`;
 	const sha = crypto.createHash('sha256').update(badSha ? Buffer.from('other') : bytes).digest('hex');
 	const hits = {};
@@ -36,7 +36,10 @@ async function startFeed({ id, bytes = crypto.randomBytes(1024), badSha = false,
 			res.writeHead(302, { location: `${base}/blob` });
 			res.end();
 		} else if (req.url === '/blob') {
-			if (truncate) {
+			if (stall) {
+				res.writeHead(200, { 'content-length': bytes.length });
+				res.write(bytes.subarray(0, 10));
+			} else if (truncate) {
 				res.writeHead(200, { 'content-length': bytes.length * 2 });
 				res.write(bytes.subarray(0, 100));
 				setTimeout(() => res.socket.destroy(), 20);
@@ -55,7 +58,7 @@ async function startFeed({ id, bytes = crypto.randomBytes(1024), badSha = false,
 		url: `http://127.0.0.1:${server.address().port}/latest`,
 		bytes,
 		hits,
-		close: () => new Promise(r => server.close(r)),
+		close: () => new Promise(r => { server.close(r); server.closeAllConnections(); }),
 	};
 }
 

@@ -64,3 +64,22 @@ test('fetchLatest returns null when the release has no installer asset', async t
 	t.after(() => server.close());
 	assert.equal(await fetchLatest(`http://127.0.0.1:${server.address().port}/latest`), null);
 });
+
+test('downloadVerified leaves another in-flight download of the same release alone', async t => {
+	const feed = await startFeed({ id: ID });
+	t.after(feed.close);
+	const dir = tempDir();
+	fs.writeFileSync(path.join(dir, `${ID}.99999.part`), 'another window');
+	fs.writeFileSync(path.join(dir, '1.135.06055-20260901.1.exe'), 'older');
+	await downloadVerified(await fetchLatest(feed.url), dir);
+	assert.equal(fs.existsSync(path.join(dir, `${ID}.99999.part`)), true);
+	assert.equal(fs.existsSync(path.join(dir, '1.135.06055-20260901.1.exe')), false);
+});
+
+test('downloadVerified gives up on a stalled download', async t => {
+	const feed = await startFeed({ id: ID, stall: true });
+	t.after(feed.close);
+	const dir = tempDir();
+	await assert.rejects(downloadVerified(await fetchLatest(feed.url), dir, { timeoutMs: 300 }));
+	assert.equal(fs.readdirSync(dir).length, 0);
+});

@@ -8,10 +8,19 @@ const { Readable } = require('stream');
 const { pipeline } = require('stream/promises');
 
 const HEADERS = { 'user-agent': 'briii-update', accept: 'application/vnd.github+json' };
+const FEED_TIMEOUT_MS = 30 * 1000;
+const DOWNLOAD_TIMEOUT_MS = 30 * 60 * 1000;
+
+/** SHA-256 (hex) of a file, streamed. */
+async function hashFile(file) {
+	const hash = crypto.createHash('sha256');
+	await pipeline(fs.createReadStream(file), hash);
+	return hash.digest('hex');
+}
 
 /** @returns {Promise<{ id: string, installerUrl: string, shaUrl: string, pageUrl: string } | null>} */
 async function fetchLatest(feedUrl) {
-	const res = await fetch(feedUrl, { headers: HEADERS });
+	const res = await fetch(feedUrl, { headers: HEADERS, signal: AbortSignal.timeout(FEED_TIMEOUT_MS) });
 	if (!res.ok) {
 		throw new Error(`release feed returned ${res.status}`);
 	}
@@ -28,30 +37,30 @@ async function fetchLatest(feedUrl) {
 
 /**
  * Downloads the installer to <dir>/<id>.exe, checking it against the published SHA-256.
- * Nothing but a verified file ever gets the .exe name. Older installers in <dir> are removed.
+ * Nothing but a verified file ever gets the .exe name: the file on disk is hashed, so another
+ * writer can't slip in. Each process downloads to its own .part (several windows may check at
+ * once). Files of other releases in <dir> are removed.
  * @returns {Promise<string>} the installer path
  */
-async function downloadVerified(release, dir) {
+async function downloadVerified(release, dir, { timeoutMs = DOWNLOAD_TIMEOUT_MS } = {}) {
 	fs.mkdirSync(dir, { recursive: true });
 	const target = path.join(dir, `${release.id}.exe`);
-	const part = `${target}.part`;
+	const part = path.join(dir, `${release.id}.${process.pid}.part`);
+	const signal = AbortSignal.timeout(timeoutMs);
 	try {
-		const shaRes = await fetch(release.shaUrl, { headers: HEADERS });
+		const shaRes = await fetch(release.shaUrl, { headers: HEADERS, signal });
 		if (!shaRes.ok) {
 			throw new Error(`checksum download returned ${shaRes.status}`);
 		}
 		const expected = (await shaRes.text()).trim().split(/\s+/)[0].toLowerCase();
 
-		const res = await fetch(release.installerUrl, { headers: { 'user-agent': HEADERS['user-agent'] } });
+		const res = await fetch(release.installerUrl, { headers: { 'user-agent': HEADERS['user-agent'] }, signal });
 		if (!res.ok || !res.body) {
 			throw new Error(`installer download returned ${res.status}`);
 		}
-		const hash = crypto.createHash('sha256');
-		const body = Readable.fromWeb(res.body);
-		body.on('data', chunk => hash.update(chunk));
-		await pipeline(body, fs.createWriteStream(part));
+		await pipeline(Readable.fromWeb(res.body), fs.createWriteStream(part), { signal });
 
-		const actual = hash.digest('hex');
+		const actual = await hashFile(part);
 		if (actual !== expected) {
 			throw new Error(`checksum mismatch (expected ${expected}, got ${actual})`);
 		}
@@ -61,11 +70,11 @@ async function downloadVerified(release, dir) {
 		throw err;
 	}
 	for (const f of fs.readdirSync(dir)) {
-		if (/\.(exe|part)$/i.test(f) && path.join(dir, f) !== target) {
+		if (/\.(exe|part)$/i.test(f) && !f.startsWith(`${release.id}.`)) {
 			fs.rmSync(path.join(dir, f), { force: true });
 		}
 	}
 	return target;
 }
 
-module.exports = { fetchLatest, downloadVerified };
+module.exports = { fetchLatest, downloadVerified, hashFile };

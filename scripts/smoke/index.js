@@ -72,7 +72,6 @@ async function run() {
 			'redhat.telemetry.enabled': false,
 			'workbench.browser.openLocalhostLinks': true,
 			'workbench.welcomePage.extraAnnouncements': false,
-			'gitlens.advanced.skipOnboarding': true,
 		};
 		const wrong = Object.entries(want).filter(([k, v]) => c.get(k) !== v).map(([k, v]) => `${k}=${JSON.stringify(c.get(k))} (want ${JSON.stringify(v)})`);
 		const pyFormatter = vscode.workspace.getConfiguration('editor', { languageId: 'python' }).get('defaultFormatter');
@@ -81,7 +80,7 @@ async function run() {
 	});
 
 	await check('every bundled extension activates', async () => {
-		const ids = ['briii.briii-defaults', 'briii.briii-theme', 'briii.briii-deploy', 'vscode.git', 'vscode.typescript-language-features', 'ms-vscode.js-debug', ...expected];
+		const ids = ['briii.briii-defaults', 'briii.briii-theme', 'briii.briii-deploy', 'briii.briii-update', 'vscode.git', 'vscode.typescript-language-features', 'ms-vscode.js-debug', ...expected];
 		const bad = [];
 		for (const id of ids) {
 			const ext = vscode.extensions.getExtension(id);
@@ -92,9 +91,64 @@ async function run() {
 		return `${ids.length} extensions`;
 	}, 300000);
 
+	// Claude Code and GitLens can't be bundled (licences); briii-update installs them on first launch.
+	await check('first launch: Claude Code and GitLens installed from Open VSX', async () => {
+		const ids = ['anthropic.claude-code', 'eamodio.gitlens'];
+		await poll(() => ids.every(id => vscode.extensions.getExtension(id)), 180000, `installed: ${ids.filter(id => vscode.extensions.getExtension(id)).join(', ') || 'none'}`, 2000);
+		for (const id of ids) await withTimeout(Promise.resolve(vscode.extensions.getExtension(id).activate()), 60000, id);
+		// GitLens' own settings only exist once it is installed; the shipped default must apply to it.
+		const skip = vscode.workspace.getConfiguration().get('gitlens.advanced.skipOnboarding');
+		assert(skip === true, `gitlens.advanced.skipOnboarding=${JSON.stringify(skip)} (want true)`);
+		return ids.join(', ');
+	}, 240000);
+
+	// A local server that looks like GitHub's "latest release" API, with a redirecting asset URL.
+	const feed = (id, { badSha = false } = {}) => {
+		const crypto = require('crypto');
+		const bytes = crypto.randomBytes(1024);
+		const name = `BriiiCode-Setup-x64-${id}.exe`;
+		const sha = crypto.createHash('sha256').update(badSha ? Buffer.from('x') : bytes).digest('hex');
+		const srv = http.createServer((req, res) => {
+			const base = `http://127.0.0.1:${srv.address().port}`;
+			if (req.url === '/latest') res.end(JSON.stringify({ tag_name: `v${id}`, html_url: `${base}/page`, assets: [
+				{ name, browser_download_url: `${base}/a/${name}` }, { name: `${name}.sha256`, browser_download_url: `${base}/a/${name}.sha256` }] }));
+			else if (req.url === `/a/${name}`) { res.writeHead(302, { location: `${base}/blob` }); res.end(); }
+			else if (req.url === '/blob') res.end(bytes);
+			else if (req.url === `/a/${name}.sha256`) res.end(`${sha}  ${name}\n`);
+			else { res.writeHead(404); res.end(); }
+		});
+		return new Promise(r => srv.listen(0, '127.0.0.1', () => r({ url: `http://127.0.0.1:${srv.address().port}/latest`, close: () => srv.close() })));
+	};
+	const updateDir = process.env.BRIII_UPDATE_DIR;
+
+	await check('updater: finds, downloads and verifies a release', async () => {
+		assert(updateDir, 'BRIII_UPDATE_DIR not set by verify.ps1');
+		const f = await feed('9.999.99999-20991231.1');
+		const before = process.env.BRIII_UPDATE_FEED;
+		process.env.BRIII_UPDATE_FEED = f.url;
+		try {
+			const r = await vscode.commands.executeCommand('briii.update.check');
+			assert(r && r.status === 'ready', `status ${JSON.stringify(r)}`);
+			const state = JSON.parse(fs.readFileSync(path.join(updateDir, 'state.json'), 'utf8'));
+			assert(state.pending && fs.existsSync(state.pending.path), `no pending installer: ${JSON.stringify(state)}`);
+			return r.id;
+		} finally { process.env.BRIII_UPDATE_FEED = before; f.close(); }
+	});
+
+	await check('updater: rejects a wrong checksum', async () => {
+		const f = await feed('9.999.99999-20991231.2', { badSha: true });
+		const before = process.env.BRIII_UPDATE_FEED;
+		process.env.BRIII_UPDATE_FEED = f.url;
+		try {
+			const r = await vscode.commands.executeCommand('briii.update.check');
+			assert(r && r.status === 'failed' && /checksum mismatch/.test(r.error), `status ${JSON.stringify(r)}`);
+			assert(!fs.existsSync(path.join(updateDir, '9.999.99999-20991231.2.exe')), 'unverified installer kept');
+		} finally { process.env.BRIII_UPDATE_FEED = before; f.close(); }
+	});
+
 	await check('extension commands registered', async () => {
 		const all = new Set(await vscode.commands.getCommands(true));
-		const exact = ['workbench.action.browser.open', 'briii.deploy', 'briii.deployPreview', 'briii.deployProduction', 'briii.showLastDeployment', 'claude-vscode.editor.open', 'editor.action.formatDocument', 'git.commit', 'code-runner.run', 'rest-client.request'];
+		const exact = ['workbench.action.browser.open', 'briii.deploy', 'briii.deployPreview', 'briii.deployProduction', 'briii.showLastDeployment', 'claude-vscode.editor.open', 'briii.update.check', 'briii.update.installNow', 'editor.action.formatDocument', 'git.commit', 'code-runner.run', 'rest-client.request'];
 		const prefixes = ['gitlens.', 'eslint.', 'tailwindCSS.', 'errorLens.', 'pr.', 'prettier.', 'todo-tree.', 'ruff.'];
 		const missing = exact.filter(c => !all.has(c));
 		for (const p of prefixes) if (![...all].some(c => c.startsWith(p))) missing.push(`${p}*`);
@@ -323,7 +377,7 @@ async function run() {
 		await withTimeout(Promise.resolve(vscode.authentication.getSession('github', ['read:user'], { silent: true })), 20000, 'github provider');
 	});
 
-	await check('Claude Code: bundled CLI runs', async () => {
+	await check('Claude Code: CLI runs', async () => {
 		const ext = vscode.extensions.getExtension('anthropic.claude-code');
 		assert(ext, 'Claude Code not installed');
 		const bin = path.join(ext.extensionPath, 'resources', 'native-binary', 'claude.exe');

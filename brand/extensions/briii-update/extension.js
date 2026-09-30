@@ -3,7 +3,6 @@
 'use strict';
 
 const vscode = require('vscode');
-const cp = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -11,6 +10,7 @@ const { checkForUpdate } = require('./lib/updater');
 const { readState, writeState } = require('./lib/state');
 const { effectiveMode } = require('./lib/version');
 const firstLaunch = require('./lib/firstLaunch');
+const { helperCommandLine, startDetached } = require('./lib/helperLaunch');
 
 const FIRST_CHECK_MS = 30 * 1000;
 const CHECK_EVERY_MS = 6 * 60 * 60 * 1000;
@@ -204,24 +204,17 @@ async function installNow() {
 	await vscode.commands.executeCommand('workbench.action.quit');
 }
 
-/** Starts install-on-exit.ps1 detached: it waits for Briii Code to close, then installs. */
+/** Starts install-on-exit.ps1 outside the extension host: it waits for Briii Code to close, then installs. */
 function startHelper(pending, relaunch) {
-	const env = { ...process.env };
-	for (const name of Object.keys(env)) {
-		// Inherited from the extension host; they would make a relaunched Briii Code start as plain Node.
-		if (name === 'ELECTRON_RUN_AS_NODE' || name.startsWith('VSCODE_')) {
-			delete env[name];
-		}
-	}
-	const args = ['-NoProfile', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass',
-		'-File', path.join(context.extensionPath, 'install-on-exit.ps1'),
-		'-Installer', pending.path, '-AppDir', installDir(), '-StateDir', updateDir(), '-Id', pending.id];
-	if (relaunch) {
-		args.push('-Relaunch');
-	}
-	const child = cp.spawn('powershell.exe', args, { detached: true, stdio: 'ignore', windowsHide: true, env });
-	child.unref();
-	log(`Installing ${pending.id} after Briii Code closes.`);
+	const ok = startDetached(helperCommandLine({
+		script: path.join(context.extensionPath, 'install-on-exit.ps1'),
+		installer: pending.path, appDir: installDir(), stateDir: updateDir(), id: pending.id, relaunch,
+	}));
+	// Also on disk: during shutdown the output channel may already be gone.
+	fs.appendFileSync(path.join(updateDir(), 'install.log'),
+		`${new Date().toISOString()} ${pending.id} helper ${ok ? 'started' : 'FAILED to start'}\n`);
+	log(ok ? `Installing ${pending.id} after Briii Code closes.` : `Couldn't start the update helper for ${pending.id}.`);
+	return ok;
 }
 
 function deactivate() {

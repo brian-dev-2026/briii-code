@@ -30,6 +30,16 @@ function must(cond, msg) {
 
 must(fs.existsSync(path.join(stageDir, oldExe)), `expected ${oldExe} in ${stageDir}`);
 
+// Extensions that can't be redistributed are installed from Open VSX on first launch instead
+// (by the briii-update extension). Parsed like build.ps1 parses extensions.txt.
+const readIdList = file => fs.existsSync(file)
+	? fs.readFileSync(file, 'utf8').split(/\r?\n/).map(l => l.replace(/#.*$/, '').trim()).filter(Boolean).map(l => l.split('@')[0])
+	: [];
+const firstLaunch = readIdList(path.join(defaultsDir, 'first-launch-extensions.txt'));
+// VS Code asks "Do you trust the publisher ...?" before installing from a new publisher, which
+// would turn the silent first-launch setup into dialogs. Pre-trust exactly these publishers.
+const firstLaunchPublishers = [...new Set(firstLaunch.map(id => id.split('.')[0].toLowerCase()))];
+
 // --- product.json -----------------------------------------------------------
 Object.assign(product, {
 	nameShort: brand.nameShort,
@@ -58,6 +68,7 @@ Object.assign(product, {
 	// Read by the briii-update extension: which build this is, and where releases come from.
 	briiiRelease: releaseId,
 	briiiUpdateRepo: brand.updateRepo,
+	trustedExtensionPublishers: [...new Set([...(product.trustedExtensionPublishers || []), ...firstLaunchPublishers])],
 });
 // The built-in updater would replace Briii Code with stock VSCodium; updates come from rerunning build.ps1.
 delete product.updateUrl;
@@ -183,11 +194,6 @@ for (const ext of fs.readdirSync(brandExtDir)) {
 	});
 }
 
-// Extensions that can't be redistributed are installed from Open VSX on first launch instead.
-const readIdList = file => fs.existsSync(file)
-	? fs.readFileSync(file, 'utf8').split(/\r?\n/).map(l => l.replace(/#.*$/, '').trim()).filter(Boolean).map(l => l.split('@')[0])
-	: [];
-const firstLaunch = readIdList(path.join(defaultsDir, 'first-launch-extensions.txt'));
 const updateExtDir = path.join(appDir, 'extensions', 'briii-update');
 must(fs.existsSync(updateExtDir), 'brand/extensions/briii-update is missing');
 fs.writeFileSync(path.join(updateExtDir, 'first-launch.json'), JSON.stringify(firstLaunch, null, '\t') + '\n');

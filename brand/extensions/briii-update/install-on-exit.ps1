@@ -19,7 +19,7 @@ function Enter-HelperLock([string]$StateDir) {
 
 # Logs the result and updates state.json (no BOM, the extension reads it with JSON.parse).
 function Complete-Install([string]$StateDir, [string]$Id, [int]$ExitCode) {
-	Add-Content (Join-Path $StateDir 'install.log') "$((Get-Date).ToString('s')) $Id exit=$ExitCode"
+	Add-Content (Join-Path $StateDir 'install.log') "$((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')) $Id exit=$ExitCode"
 	$file = Join-Path $StateDir 'state.json'
 	$state = Get-Content $file -Raw | ConvertFrom-Json
 	if ($ExitCode -eq 0) {
@@ -48,7 +48,7 @@ try {
 		Start-Sleep -Seconds 2
 	} while ((Get-Date) -lt $deadline)
 	if ($running) {
-		Add-Content (Join-Path $StateDir 'install.log') "$((Get-Date).ToString('s')) $Id skipped: Briii Code still running after 30 minutes"
+		Add-Content (Join-Path $StateDir 'install.log') "$((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')) $Id skipped: Briii Code still running after 30 minutes"
 		exit 1
 	}
 
@@ -57,7 +57,7 @@ try {
 		$p = Start-Process $Installer -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-' -Wait -PassThru
 		$code = $p.ExitCode
 	} catch {
-		Add-Content (Join-Path $StateDir 'install.log') "$((Get-Date).ToString('s')) $Id could not start the installer: $($_.Exception.Message)"
+		Add-Content (Join-Path $StateDir 'install.log') "$((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')) $Id could not start the installer: $($_.Exception.Message)"
 	}
 	Complete-Install $StateDir $Id $code
 	if ($code -eq 0) { Remove-Item $Installer -Force -ErrorAction SilentlyContinue }

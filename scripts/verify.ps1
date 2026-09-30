@@ -10,7 +10,9 @@
 #>
 [CmdletBinding()]
 param(
-	[string]$Installer
+	[string]$Installer,
+	# Skip the in-app smoke tests and screenshots (CI: the hosted runner has no interactive desktop).
+	[switch]$NoGui
 )
 
 $ErrorActionPreference = 'Stop'
@@ -41,6 +43,9 @@ $App = Join-Path $Work 'app'
 $UserData = Join-Path $Work 'user-data'
 $ExtDir = Join-Path $Work 'extensions'
 New-Item -ItemType Directory -Force $Work, $UserData, $ExtDir | Out-Null
+# Keep the app's updater away from the real release feed and the real update folder.
+$env:BRIII_UPDATE_DIR = Join-Path $Work 'updates'
+$env:BRIII_UPDATE_FEED = 'http://127.0.0.1:9/latest'
 
 Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @'
 using System;
@@ -128,9 +133,27 @@ try {
 		$bundled = Get-Content (Join-Path $Root 'defaults\extensions.txt') |
 			ForEach-Object { ($_ -replace '#.*$', '').Trim() } | Where-Object { $_ } |
 			ForEach-Object { ($_ -split '@')[0].ToLower() }
-		foreach ($ext in @('briii-defaults', 'briii-theme', 'briii-deploy') + $bundled) {
+		foreach ($ext in @('briii-defaults', 'briii-theme', 'briii-deploy', 'briii-update') + $bundled) {
 			Assert (Test-Path (Join-Path $App "resources\app\extensions\$ext\package.json")) "missing $ext"
 		}
+	}
+
+	Check 'first-launch extensions are not bundled (licences), but listed for briii-update' {
+		$ids = Get-Content (Join-Path $Root 'defaults\first-launch-extensions.txt') |
+			ForEach-Object { (($_ -replace '#.*$', '').Trim() -split '@')[0].ToLower() } | Where-Object { $_ }
+		$ext = Join-Path $App 'resources\app\extensions'
+		$bundled = @($ids | Where-Object { Test-Path (Join-Path $ext $_) })
+		Assert (-not $bundled) "bundled anyway: $($bundled -join ', ')"
+		$listed = Get-Content (Join-Path $ext 'briii-update\first-launch.json') -Raw | ConvertFrom-Json
+		Assert ((@($listed) -join ',') -eq ($ids -join ',')) "briii-update lists '$(@($listed) -join ',')'"
+		Assert (-not (Test-Path (Join-Path $ext 'briii-update\test'))) 'unit tests were shipped'
+		$p = Get-Content (Join-Path $App 'resources\app\product.json') -Raw | ConvertFrom-Json
+		Assert ($p.briiiRelease -and $p.briiiUpdateRepo -eq $Brand.updateRepo) "briiiRelease '$($p.briiiRelease)', briiiUpdateRepo '$($p.briiiUpdateRepo)'"
+		# Without this, installing them asks "Do you trust the publisher ...?" instead of being silent.
+		$publishers = @($ids | ForEach-Object { ($_ -split '\.')[0] } | Sort-Object -Unique)
+		$untrusted = @($publishers | Where-Object { @($p.trustedExtensionPublishers) -notcontains $_ })
+		Assert (-not $untrusted) "publishers not in trustedExtensionPublishers: $($untrusted -join ', ')"
+		"($($ids -join ', '); release $($p.briiiRelease))"
 	}
 
 	Check 'stylesheet checksum matches (no "corrupt installation" warning)' {
@@ -206,6 +229,7 @@ try {
 		Select-Object -ExpandProperty Name)
 	foreach ($name in $leaked) { [Environment]::SetEnvironmentVariable($name, $null, 'Process') }
 
+	if (-not $NoGui) {
 	# In-app smoke tests (scripts\smoke): terminals, tasks, debugger, git, TypeScript, Prettier,
 	# search, watcher, webviews, Integrated Browser, Claude Code - run inside the installed app.
 	$SmokeData = Join-Path $Work 'smoke-data'
@@ -317,7 +341,9 @@ try {
 			"('$title' -> $png)"
 		}
 	}
+	} # -not $NoGui
 } finally {
+	Remove-Item env:BRIII_UPDATE_DIR, env:BRIII_UPDATE_FEED -ErrorAction SilentlyContinue
 	Get-Process -Name $Brand.exeName -ErrorAction SilentlyContinue |
 		Where-Object { $_.Path -like "$App*" } | Stop-Process -Force -ErrorAction SilentlyContinue
 	Start-Sleep -Seconds 2

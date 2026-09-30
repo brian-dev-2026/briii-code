@@ -4,6 +4,7 @@ out/
 
 # Local-only notes for Claude Code
 CLAUDE.md
+.superpowers/
 
 # Secrets and credentials - never publish
 .env

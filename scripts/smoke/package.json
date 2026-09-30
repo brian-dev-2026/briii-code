@@ -1,0 +1,9 @@
+{
+	"name": "briii-smoke",
+	"displayName": "Briii Code smoke tests",
+	"description": "Loaded only by scripts/verify.ps1 (--extensionTestsPath). Never bundled into the app.",
+	"publisher": "briii",
+	"version": "0.0.0",
+	"private": true,
+	"engines": { "vscode": "^1.90.0" }
+}

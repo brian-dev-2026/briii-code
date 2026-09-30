@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="brand/logo/logo-dark.png">
+    <img src="brand/logo/logo-light.png" alt="Briii Code" width="420">
+  </picture>
+</p>
+
 # Briii Code
 
 A personal, branded build of VS Code for Windows. It repackages the official
@@ -8,8 +15,7 @@ Extensions come from [Open VSX](https://open-vsx.org).
 
 ## Build
 
-Requirements: Node.js, Inno Setup 6 (`winget install --id JRSoftware.InnoSetup -e --scope user`),
-and Python with Pillow only if `brand/icons/app.ico` is missing.
+Requirements: Node.js and Inno Setup 6 (`winget install --id JRSoftware.InnoSetup -e --scope user`).
 
 ```powershell
 .\scripts\build.ps1                        # latest VSCodium release
@@ -41,7 +47,7 @@ The installer is unsigned, so the first time you run it Windows SmartScreen show
 | File | What it controls |
 |---|---|
 | `brand/brand.json` | Name, CLI command, data folders, URL protocol. **Never change `ids`**, because Windows uses them to recognise upgrades. |
-| `brand/icons/` | `app.ico` (program and installer icon) and the Start-tile PNGs. Replace them with your own art. `scripts/make-placeholder-icon.py` regenerates the default "B". |
+| `brand/icons/src/` | The icon artwork: `icon.svg` (full icon), `icon-small.svg` (16-24 px) and `glyph.svg` (the B alone). After editing, run `npm install` once, then `npm run icons`. That regenerates `brand/icons/` (`app.ico`, Start tiles, title-bar icon, watermark) and `brand/logo/` (wordmark and logo, dark and light). Commit the output. |
 | `defaults/settings.json` | Default settings (plain JSON). Anything you set in the app still wins. |
 | `defaults/extensions.txt` | Open VSX extensions bundled into the installer, so they work offline from first launch. |
 | `brand/extensions/` | Briii's own built-in extensions: `briii-theme` (colours) and `briii-deploy` (Vercel). |

@@ -1,0 +1,12 @@
+{
+	"name": "briii-code",
+	"private": true,
+	"description": "Tooling for scripts/make-icons.mjs. The build itself (scripts/build.ps1) needs none of it.",
+	"scripts": {
+		"icons": "node scripts/make-icons.mjs"
+	},
+	"devDependencies": {
+		"@resvg/resvg-js": "^2.6.2",
+		"opentype.js": "^1.3.4"
+	}
+}

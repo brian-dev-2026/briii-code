@@ -1,12 +1,21 @@
 # Extensions bundled into the installer so they work offline from the first launch.
-# One Open VSX id per line: publisher.name  or  publisher.name@version
-# Browse ids at https://open-vsx.org
+# One Open VSX id per line: publisher.name  or  publisher.name@version# Browse ids at https://open-vsx.org
 
 # GitHub pull requests and issues in the sidebar (sign in via Accounts > Sign in with GitHub)
 GitHub.vscode-pull-request-github
 
+# AI coding assistant (sign in with your Claude account)
+anthropic.claude-code
+
+# Web developer starter pack
+esbenp.prettier-vscode
+dbaeumer.vscode-eslint
+bradlc.vscode-tailwindcss
+usernamehw.errorlens
+eamodio.gitlens
+
+# Detailed file and folder icons (the default icon theme)
+PKief.material-icon-theme
+
 # Examples:
-# esbenp.prettier-vscode
-# dbaeumer.vscode-eslint
 # ms-python.python
-# PKief.material-icon-theme

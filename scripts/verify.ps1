@@ -19,7 +19,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 $Root = Split-Path -Parent $PSScriptRoot
 $Brand = Get-Content (Join-Path $Root 'brand\brand.json') -Raw | ConvertFrom-Json
-$OnlineExt = 'esbenp.prettier-vscode'
+$OnlineExt = 'streetsidesoftware.code-spell-checker'   # must not be in defaults\extensions.txt
 $VsixExt = @{ ns = 'EditorConfig'; name = 'EditorConfig' }
 
 if (-not $Installer) {
@@ -124,8 +124,11 @@ try {
 		Assert ($info.ProductName -eq $Brand.nameLong) "ProductName is '$($info.ProductName)'"
 	}
 
-	Check 'built-in Briii extensions (defaults, themes, deploy, GitHub PRs)' {
-		foreach ($ext in 'briii-defaults', 'briii-theme', 'briii-deploy', 'github.vscode-pull-request-github') {
+	Check 'built-in Briii extensions (defaults, themes, deploy, defaults\extensions.txt)' {
+		$bundled = Get-Content (Join-Path $Root 'defaults\extensions.txt') |
+			ForEach-Object { ($_ -replace '#.*$', '').Trim() } | Where-Object { $_ } |
+			ForEach-Object { ($_ -split '@')[0].ToLower() }
+		foreach ($ext in @('briii-defaults', 'briii-theme', 'briii-deploy') + $bundled) {
 			Assert (Test-Path (Join-Path $App "resources\app\extensions\$ext\package.json")) "missing $ext"
 		}
 	}
@@ -142,6 +145,21 @@ try {
 		}
 		$css = Get-Content (Join-Path $appDir 'out\vs\workbench\workbench.desktop.main.css') -Raw
 		Assert ($css -match 'Briii Code - Apple-style UI') 'apple.css not appended'
+	}
+
+	Check 'Briii artwork installed (icon, title bar, watermark, exe)' {
+		$appDir = Join-Path $App 'resources\app'
+		$same = { param($a, $b) (Get-FileHash $a).Hash -eq (Get-FileHash $b).Hash }
+		Assert (& $same (Join-Path $appDir 'resources\win32\code.ico') (Join-Path $Root 'brand\icons\app.ico')) 'code.ico is not brand\icons\app.ico'
+		Assert (& $same (Join-Path $appDir 'out\media\code-icon.svg') (Join-Path $Root 'brand\icons\app-icon.svg')) 'title-bar icon is not brand\icons\app-icon.svg'
+		$mark = Get-Content (Join-Path $appDir 'out\media\letterpress-dark.svg') -Raw
+		Assert ($mark -match 'M40 26 V102') 'watermark is not the Briii B'
+		# The icon Windows shows for the exe: the new tile is dark ink, the old placeholder was indigo.
+		$bmp = [System.Drawing.Icon]::ExtractAssociatedIcon($exe).ToBitmap()
+		$bmp.Save((Join-Path $Root 'out\screenshot-exe-icon.png'), [System.Drawing.Imaging.ImageFormat]::Png)
+		$px = $bmp.GetPixel([int]($bmp.Width / 2), 3)
+		Assert ($px.R -lt 70 -and $px.G -lt 80 -and $px.B -lt 110 -and $px.A -gt 200) "exe icon top edge is rgb($($px.R),$($px.G),$($px.B)) - still the old icon?"
+		"(exe icon -> out\screenshot-exe-icon.png)"
 	}
 
 	Check 'no "VSCodium" left in UI strings' {
@@ -172,6 +190,70 @@ try {
 		Select-Object -ExpandProperty Name)
 	foreach ($name in $leaked) { [Environment]::SetEnvironmentVariable($name, $null, 'Process') }
 
+	# In-app smoke tests (scripts\smoke): terminals, tasks, debugger, git, TypeScript, Prettier,
+	# search, watcher, webviews, Integrated Browser, Claude Code - run inside the installed app.
+	$SmokeData = Join-Path $Work 'smoke-data'
+	$SmokeWs = Join-Path $Work 'smoke-ws'
+	$SmokeOut = Join-Path $Work 'smoke-results.json'
+	$smokeRan = $false
+	Check 'in-app smoke tests ran' {
+		New-Item -ItemType Directory -Force (Join-Path $SmokeData 'User'), $SmokeWs | Out-Null
+		$utf8 = New-Object Text.UTF8Encoding $false
+		# No theme or formatter here: the smoke tests check the shipped defaults.
+		$json = @{
+			'security.workspace.trust.enabled' = $false
+			'extensions.autoUpdate' = $false
+			'extensions.autoCheckUpdates' = $false
+		} | ConvertTo-Json
+		[IO.File]::WriteAllText((Join-Path $SmokeData 'User\settings.json'), $json, $utf8)
+		$fixtures = @{
+			'dbg.js' = "const fs = require('fs');`nlet x = 41;`nx++;`nfs.writeFileSync(process.argv[2], String(x));`n"
+			'bad.ts' = "const n: number = 'not a number';`nexport { n };`n"
+			'fmt.js' = "const a={b:1,c:[1,2,3]}`n"
+			'needle.txt' = "briii-needle`n"
+		}
+		foreach ($f in $fixtures.Keys) { [IO.File]::WriteAllText((Join-Path $SmokeWs $f), $fixtures[$f], $utf8) }
+		$ErrorActionPreference = 'Continue'
+		git -C $SmokeWs init -q 2>&1 | Out-Null
+		git -C $SmokeWs add -A 2>&1 | Out-Null
+		git -C $SmokeWs -c user.name=briii -c user.email=smoke@briii.invalid commit -qm init 2>&1 | Out-Null
+		$ErrorActionPreference = 'Stop'
+
+		$env:BRIII_SMOKE_OUT = $SmokeOut
+		$env:BRIII_SMOKE_EXTS = (Get-Content (Join-Path $Root 'defaults\extensions.txt') |
+			ForEach-Object { (($_ -replace '#.*$', '').Trim() -split '@')[0] } | Where-Object { $_ }) -join ','
+		$smoke = Join-Path $PSScriptRoot 'smoke'
+		$p = Start-Process $exe -PassThru -ArgumentList @(
+			"--user-data-dir=`"$SmokeData`"", "--extensions-dir=`"$ExtDir`"",
+			"--extensionDevelopmentPath=`"$smoke`"", "--extensionTestsPath=`"$(Join-Path $smoke 'index.js')`"",
+			'--skip-welcome', '--skip-release-notes', '--disable-workspace-trust', '--new-window', "`"$SmokeWs`""
+		)
+		if (-not $p.WaitForExit(900000)) {
+			Get-Process -Name $Brand.exeName -ErrorAction SilentlyContinue |
+				Where-Object { $_.Path -like "$App*" } | Stop-Process -Force -ErrorAction SilentlyContinue
+			throw 'smoke tests did not finish within 15 minutes'
+		}
+		Remove-Item env:BRIII_SMOKE_OUT, env:BRIII_SMOKE_EXTS
+		Assert (Test-Path $SmokeOut) "no report written (app exit code $($p.ExitCode))"
+		$script:smokeRan = $true
+		Start-Sleep -Seconds 2
+	}
+	if ($smokeRan) {
+		foreach ($r in (Get-Content $SmokeOut -Raw | ConvertFrom-Json)) {
+			Check "app: $($r.name)" {
+				Assert $r.ok $r.detail
+				if ($r.detail) { "($($r.detail))" }
+			}
+		}
+		Check 'app: no extension activation errors in the log' {
+			$log = Get-ChildItem (Join-Path $SmokeData 'logs') -Recurse -Filter 'exthost.log' -ErrorAction SilentlyContinue
+			Assert $log 'no exthost.log found'
+			$errors = $log | Select-String -Pattern 'Activating extension .* failed|\[error\].*activat' |
+				ForEach-Object { $_.Line.Trim() } | Select-Object -Unique -First 5
+			Assert (-not $errors) ($errors -join "`n")
+		}
+	}
+
 	foreach ($theme in 'Briii Dark', 'Briii Light') {
 		Check "GUI launches in $theme (screenshot)" {
 			$settingsDir = Join-Path $UserData 'User'
@@ -201,6 +283,17 @@ try {
 			Start-Sleep -Seconds 8   # let extensions, theme and fonts settle
 			$png = Join-Path $Root ("out\screenshot-" + ($theme -replace '^Briii ', '').ToLower() + '.png')
 			[BriiiSnap]::Save($proc.MainWindowHandle, $png)
+			if ($theme -eq 'Briii Dark') {
+				# 3x close-up of the title-bar logo.
+				$shot = [System.Drawing.Image]::FromFile($png)
+				$crop = New-Object System.Drawing.Bitmap 1080, 150
+				$g = [System.Drawing.Graphics]::FromImage($crop)
+				$g.InterpolationMode = 'NearestNeighbor'
+				$g.DrawImage($shot, (New-Object System.Drawing.Rectangle 0, 0, 1080, 150), (New-Object System.Drawing.Rectangle 0, 0, 360, 50), 'Pixel')
+				$g.Dispose(); $shot.Dispose()
+				$crop.Save((Join-Path $Root 'out\screenshot-titlebar.png'), [System.Drawing.Imaging.ImageFormat]::Png)
+				$crop.Dispose()
+			}
 			$title = $proc.MainWindowTitle
 			Get-Process -Name $Brand.exeName -ErrorAction SilentlyContinue |
 				Where-Object { $_.Path -like "$App*" } | Stop-Process -Force -ErrorAction SilentlyContinue

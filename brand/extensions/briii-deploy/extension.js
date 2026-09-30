@@ -212,8 +212,13 @@ async function deploy(context, prod) {
 
 async function announce(last) {
 	const choice = await vscode.window.showInformationMessage(
-		`${last.prod ? 'Production' : 'Preview'} deployed: ${last.url}`, 'Open', 'Copy URL');
+		`${last.prod ? 'Production' : 'Preview'} deployed: ${last.url}`,
+		'Open', 'Open in External Browser', 'Copy URL');
 	if (choice === 'Open') {
+		// The Integrated Browser; fall back to the system browser if it is unavailable.
+		vscode.commands.executeCommand('workbench.action.browser.open', last.url)
+			.then(undefined, () => vscode.env.openExternal(vscode.Uri.parse(last.url)));
+	} else if (choice === 'Open in External Browser') {
 		vscode.env.openExternal(vscode.Uri.parse(last.url));
 	} else if (choice === 'Copy URL') {
 		await vscode.env.clipboard.writeText(last.url);

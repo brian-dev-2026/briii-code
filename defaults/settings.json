@@ -3,6 +3,7 @@
 	"window.autoDetectColorScheme": true,
 	"workbench.preferredDarkColorTheme": "Briii Dark",
 	"workbench.preferredLightColorTheme": "Briii Light",
+	"workbench.iconTheme": "material-icon-theme",
 	"workbench.secondarySideBar.defaultVisibility": "hidden",
 	"workbench.tree.indent": 14,
 	"workbench.list.smoothScrolling": true,
@@ -11,5 +12,7 @@
 	"editor.smoothScrolling": true,
 	"editor.cursorSmoothCaretAnimation": "on",
 	"editor.cursorBlinking": "smooth",
-	"terminal.integrated.fontFamily": "'Cascadia Mono', Consolas, monospace"
+	"terminal.integrated.fontFamily": "'Cascadia Mono', Consolas, monospace",
+	"editor.defaultFormatter": "esbenp.prettier-vscode",
+	"workbench.browser.openLocalhostLinks": true
 }

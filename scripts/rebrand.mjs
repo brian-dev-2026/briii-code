@@ -84,6 +84,14 @@ const jsPatches = [{
 	what: 'hide the (chat) secondary side bar by default',
 	find: /("workbench\.secondarySideBar\.defaultVisibility":\{type:"string",enum:\[[^\]]*\],default:)"visibleInWorkspace"/,
 	replace: '$1"hidden"',
+}, {
+	what: 'open localhost links in the Integrated Browser by default',
+	find: /("workbench\.browser\.openLocalhostLinks":\{type:"boolean",default:)!1/,
+	replace: '$1!0',
+}, {
+	what: 'use Material Icon Theme for files and folders from the first launch',
+	find: /(FILE_ICON_THEME=)"vs-seti"/,
+	replace: '$1"material-icon-theme"',
 }];
 let js = fs.readFileSync(jsPath, 'utf8');
 for (const patch of jsPatches) {

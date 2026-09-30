@@ -62,8 +62,7 @@ $Rcedit = Join-Path $Cache 'tools\rcedit-x64.exe'
 Get-Download "https://github.com/electron/rcedit/releases/download/$RceditVersion/rcedit-x64.exe" $Rcedit
 
 if (-not (Test-Path (Join-Path $Icons 'app.ico'))) {
-	Step 'No brand\icons\app.ico - generating placeholder icons'
-	Invoke-Native python @((Join-Path $PSScriptRoot 'make-placeholder-icon.py'))
+	throw 'brand\icons\app.ico is missing - run "npm install; npm run icons" to generate the icons.'
 }
 
 # --- download VSCodium -----------------------------------------------------------

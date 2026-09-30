@@ -1,0 +1,39 @@
+{
+	"name": "briii-update",
+	"displayName": "Briii Update",
+	"description": "Keeps Briii Code up to date: downloads new releases in the background and installs them when the app closes.",
+	"publisher": "briii",
+	"version": "1.0.0",
+	"license": "MIT",
+	"engines": { "vscode": "^1.80.0" },
+	"categories": ["Other"],
+	"main": "./extension.js",
+	"activationEvents": ["onStartupFinished"],
+	"capabilities": {
+		"untrustedWorkspaces": { "supported": true },
+		"virtualWorkspaces": true
+	},
+	"contributes": {
+		"commands": [
+			{ "command": "briii.update.check", "title": "Check for Updates", "category": "Briii" },
+			{ "command": "briii.update.installNow", "title": "Install Update Now", "category": "Briii" },
+			{ "command": "briii.update.showLog", "title": "Show Update Log", "category": "Briii" }
+		],
+		"configuration": {
+			"title": "Briii Update",
+			"properties": {
+				"briii.update.mode": {
+					"type": "string",
+					"enum": ["auto", "notify", "off"],
+					"default": "auto",
+					"enumDescriptions": [
+						"Download updates in the background and install them when Briii Code closes.",
+						"Download updates in the background, then ask before installing.",
+						"Never check for updates."
+					],
+					"description": "How Briii Code updates itself."
+				}
+			}
+		}
+	}
+}

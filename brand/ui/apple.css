@@ -145,3 +145,92 @@
 	background-clip: padding-box;
 	border-radius: 10px;
 }
+
+/* ==========================================================================
+   Studio layout (docs/superpowers/specs/2026-10-02-studio-layout-design.md)
+   ========================================================================== */
+
+/* ---- Studio: the tool icons are a dock at the bottom of the sidebar -------- */
+/* workbench.activityBar.location "bottom" puts them in the sidebar's footer. VS Code sizes the
+   footer itself, so the dock is drawn inside it: a recessed pill in the canvas colour. */
+.monaco-workbench .part.sidebar > .header-or-footer.footer {
+	padding: 0 6px 6px !important;
+}
+.monaco-workbench .part.sidebar > .header-or-footer.footer > .composite-bar-container {
+	padding: 0 4px !important;
+	border-radius: 10px;
+	background-color: var(--vscode-titleBar-activeBackground);
+}
+.monaco-workbench .part.sidebar > .header-or-footer.footer .action-item .action-label {
+	border-radius: 7px !important;
+}
+.monaco-workbench .part.sidebar > .header-or-footer.footer .action-item.checked .action-label {
+	background-color: var(--vscode-list-inactiveSelectionBackground) !important;
+}
+.monaco-workbench .part.sidebar > .header-or-footer.footer .action-item .active-item-indicator {
+	display: none !important;
+}
+
+/* ---- Studio: the status bar is a row of chips ------------------------------ */
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item > .statusbar-item-label {
+	margin: 3px 2px;
+	height: calc(100% - 6px);
+	border-radius: 99px;
+	padding: 0 9px;
+	background-color: var(--vscode-editor-background);
+	line-height: normal;
+	display: flex;
+	align-items: center;
+}
+
+/* ---- Studio: the ✳ Claude button ------------------------------------------- */
+/* Extensions can't add title-bar buttons, so the layout control "Toggle Secondary Side Bar"
+   (Ctrl+Alt+B), which shows and hides the Claude card, becomes a labelled pill. Its icon id
+   differs between on and off, hence the attribute selector. */
+.monaco-workbench .part.titlebar .action-label.codicon[class*="codicon-auxiliarybar-right"] {
+	width: auto !important;
+	padding: 0 10px !important;
+	border-radius: 8px !important;
+	background-color: var(--vscode-editor-background);
+	box-shadow: inset 0 0 0 1px var(--vscode-widget-border, transparent);
+}
+.monaco-workbench .part.titlebar .action-label.codicon[class*="codicon-auxiliarybar-right"] {
+	display: inline-flex !important;
+	align-items: center;
+	gap: 6px;
+}
+.monaco-workbench .part.titlebar .action-label.codicon[class*="codicon-auxiliarybar-right"]::before {
+	content: "\ec10";   /* the codicon "sparkle" */
+}
+.monaco-workbench .part.titlebar .action-label.codicon[class*="codicon-auxiliarybar-right"]::after {
+	content: "Claude";
+	font: 500 12px/1 var(--monaco-font);
+	letter-spacing: 0;
+}
+
+/* ---- Studio: the tabs float above the code card ---------------------------- */
+/* The tab row takes the canvas colour, and the card's rounded top moves down to the path bar. */
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container {
+	background-color: var(--vscode-titleBar-activeBackground) !important;
+}
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tab:not(.active) {
+	background-color: transparent !important;
+}
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tab.active {
+	background-color: var(--vscode-editor-background) !important;
+}
+.monaco-workbench .part.editor > .content .editor-group-container > .title .breadcrumbs-below-tabs {
+	border-radius: 10px 10px 0 0;
+	background-color: var(--vscode-editor-background);
+}
+.monaco-workbench .part.titlebar .action-label.codicon[class*="codicon-auxiliarybar-right"]:not([class*="-off-"]) {
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground) !important;
+	box-shadow: none;
+}
+
+/* ---- Studio: the Claude card on the right gets a faint accent tint ---------- */
+.monaco-workbench .part.auxiliarybar {
+	background-image: linear-gradient(color-mix(in srgb, var(--vscode-focusBorder) 5%, transparent), color-mix(in srgb, var(--vscode-focusBorder) 5%, transparent)) !important;
+	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--vscode-focusBorder) 28%, transparent);
+}

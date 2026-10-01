@@ -159,7 +159,9 @@ async function run() {
 		assert(first && first.userDir, `no result: ${JSON.stringify(first)}`);
 		userDir = first.userDir;
 		const settingsFile = path.join(userDir, 'settings.json');
-		const existing = JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
+		// settings.json is JSONC: VS Code itself writes trailing commas.
+		const jsonc = require(path.join(__dirname, '..', '..', 'brand', 'extensions', 'briii-sync', 'lib', 'vendor', 'jsonc-parser', 'main.js'));
+		const existing = jsonc.parse(fs.readFileSync(settingsFile, 'utf8'), [], { allowTrailingComma: true }) || {};
 		const body = Object.entries({ ...existing, 'briii.test.token': 's3cret' }).map(([k, v]) => `\t${JSON.stringify(k)}: ${JSON.stringify(v)}`).join(',\n');
 		fs.writeFileSync(settingsFile, `{\n\t// kept by Briii Sync\n${body}\n}\n`);
 		fs.mkdirSync(path.join(userDir, 'snippets'), { recursive: true });

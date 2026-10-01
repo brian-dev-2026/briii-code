@@ -88,7 +88,8 @@ try {
 	$code = -1
 	$reopened = $false
 	try {
-		$p = Start-Process $Installer -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', '/NOCLOSEAPPLICATIONS', '/update=1' -PassThru
+		# setup.log (overwritten each run) says why a swap failed, e.g. which item was in use.
+		$p = Start-Process $Installer -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', '/NOCLOSEAPPLICATIONS', '/update=1', "/LOG=`"$(Join-Path $StateDir 'setup.log')`"" -PassThru
 		$null = $p.Handle   # keeps the handle, so ExitCode is readable after exit
 		while (-not $p.HasExited) {
 			if (& $isRunning) { $reopened = $true }

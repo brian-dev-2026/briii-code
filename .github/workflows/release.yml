@@ -39,6 +39,10 @@ jobs:
         id: plan
         run: .\scripts\ci-release-plan.ps1 -Trigger '${{ github.event_name }}' -RunNumber ${{ github.run_number }} -Repo '${{ github.repository }}'
 
+      - name: Install Inno Setup
+        if: steps.plan.outputs.build == 'true'
+        run: choco install innosetup --version 6.7.1 -y --no-progress   # pinned: build.ps1 looks for Inno Setup 6
+
       # A broken updater can't fix itself once released, so the built-in extensions' tests gate every build.
       - name: Test built-in extensions
         if: steps.plan.outputs.build == 'true'
@@ -48,10 +52,8 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           powershell -NoProfile -File brand\extensions\briii-update\test\helper.test.ps1
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-
-      - name: Install Inno Setup
-        if: steps.plan.outputs.build == 'true'
-        run: choco install innosetup --version 6.7.1 -y --no-progress   # pinned: build.ps1 looks for Inno Setup 6
+          powershell -NoProfile -File installer\test\swap.test.ps1
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
       - name: Build
         if: steps.plan.outputs.build == 'true'

@@ -55,6 +55,7 @@ try {
 	& powershell -NoProfile -File (Join-Path $PSScriptRoot '..\install-on-exit.ps1') -Installer $fake -AppDir (Join-Path $dir 'app') -ExeName 'briii-no-such-app' -StateDir $dir -Id '1.0.0-20260101.2' -WaitSeconds 5
 	$argsSeen = Get-Content (Join-Path $dir 'args.txt') -Raw -ErrorAction SilentlyContinue
 	Check 'the installer runs as a staged update, without closing apps' { $argsSeen -match '/update=1' -and $argsSeen -match '/NOCLOSEAPPLICATIONS' -and $argsSeen -match '/VERYSILENT' }
+	Check 'setup writes its log into the updates folder' { $argsSeen -match ('/LOG="' + [regex]::Escape((Join-Path $dir 'setup.log')) + '"') }
 	Check 'a successful run clears pending' { $null -eq (Get-Content (Join-Path $dir 'state.json') -Raw | ConvertFrom-Json).pending }
 } finally {
 	Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue

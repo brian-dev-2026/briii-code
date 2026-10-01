@@ -145,11 +145,8 @@ begin
   RegWriteExpandStringValue(EnvRoot, EnvKey, 'Path', Path);
 end;
 
-// ---- Staged updates --------------------------------------------------------------------------
-// briii-update runs setup with /update=1. The long copy then goes to <app>\_ while the installed
-// app stays whole, so reopening Briii Code during an update simply starts the old version. Once
-// no instance runs (its mutex is gone), the top-level items are swapped in by renames, which take
-// milliseconds; a failed rename puts everything back.
+#include "staged-update.iss"
+
 var
   SwapFailed: Boolean;
 
@@ -165,22 +162,8 @@ end;
 
 // The staged build's top-level files and folders, from build.ps1.
 function TopLevelItems: TArrayOfString;
-var
-  S: String;
-  P, N: Integer;
 begin
-  S := '{#TopLevelItems}' + '|';
-  N := 0;
-  SetArrayLength(Result, 0);
-  repeat
-    P := Pos('|', S);
-    if P > 1 then begin
-      SetArrayLength(Result, N + 1);
-      Result[N] := Copy(S, 1, P - 1);
-      N := N + 1;
-    end;
-    Delete(S, 1, P);
-  until S = '';
+  Result := SplitItems('{#TopLevelItems}');
 end;
 
 procedure RemoveItem(Path: String);
@@ -188,57 +171,11 @@ begin
   if DirExists(Path) then DelTree(Path, True, True, True) else DeleteFile(Path);
 end;
 
-// Moves the staged items into <app>; returns False (and restores the old files) on any failure.
-function SwapStaged: Boolean;
-var
-  Items: TArrayOfString;
-  App, Staged, Old: String;
-  I, Done: Integer;
-begin
-  Result := True;
-  App := ExpandConstant('{app}');
-  Staged := App + '\_';
-  Old := App + '\_old';
-  ForceDirectories(Old);
-  Items := TopLevelItems;
-  Done := 0;
-  for I := 0 to GetArrayLength(Items) - 1 do begin
-    if FileExists(App + '\' + Items[I]) or DirExists(App + '\' + Items[I]) then
-      if not RenameFile(App + '\' + Items[I], Old + '\' + Items[I]) then begin
-        Result := False;
-        break;
-      end;
-    if not RenameFile(Staged + '\' + Items[I], App + '\' + Items[I]) then begin
-      RenameFile(Old + '\' + Items[I], App + '\' + Items[I]);
-      Result := False;
-      break;
-    end;
-    Done := I + 1;
-  end;
-  if not Result then begin
-    Log('Staged update: swap failed at ' + Items[Done] + ', restoring');
-    for I := Done - 1 downto 0 do begin
-      RenameFile(App + '\' + Items[I], Staged + '\' + Items[I]);
-      RenameFile(Old + '\' + Items[I], App + '\' + Items[I]);
-    end;
-  end;
-  DelTree(Old, True, True, True);
-  DelTree(Staged, True, True, True);
-end;
-
 procedure FinishStagedUpdate;
-var
-  Waited: Integer;
 begin
-  // Wait (silently, up to a day) while someone uses the old version; it keeps working meanwhile.
-  Waited := 0;
-  while CheckForMutexes('{#AppMutex}') and (Waited < 24 * 60 * 60) do begin
-    Sleep(1000);
-    Waited := Waited + 1;
-  end;
-  SwapFailed := CheckForMutexes('{#AppMutex}') or not SwapStaged;
+  SwapFailed := not FinishStagedUpdateIn(ExpandConstant('{app}'), '{#AppMutex}', TopLevelItems, 30, 600);
+  DelTree(ExpandConstant('{app}\_'), True, True, True);
 end;
-
 // Exit code 10: the staged update couldn't be swapped in; the installed version is unchanged.
 function GetCustomSetupExitCode: Integer;
 begin

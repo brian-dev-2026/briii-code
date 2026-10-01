@@ -6,6 +6,8 @@
 	"workbench.iconTheme": "material-icon-theme",
 	"workbench.secondarySideBar.defaultVisibility": "hidden",
 	"workbench.experimental.modernUI": true,
+	"workbench.activityBar.location": "bottom",
+	"claudeCode.preferredLocation": "sidebar",
 	"workbench.tree.indent": 14,
 	"workbench.list.smoothScrolling": true,
 	"editor.fontFamily": "'Cascadia Code', Consolas, 'Courier New', monospace",

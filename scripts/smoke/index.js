@@ -446,6 +446,22 @@ async function run() {
 		assert(!gitlens.length, `open: ${gitlens.map(t => t.label).join(', ')}`);
 	});
 
+	// Studio layout: settings applied from the first launch (rebrand.mjs patches the default).
+	await check('studio: the tool icons are a dock at the bottom of the sidebar', () => {
+		const at = vscode.workspace.getConfiguration('workbench').get('activityBar.location');
+		assert(at === 'bottom', `workbench.activityBar.location=${JSON.stringify(at)} (want "bottom")`);
+	});
+
+	await check('studio: Claude Code opens in the right-hand card', () => {
+		const at = vscode.workspace.getConfiguration('claudeCode').get('preferredLocation');
+		assert(at === 'sidebar', `claudeCode.preferredLocation=${JSON.stringify(at)} (want "sidebar")`);
+	});
+
+	await check('studio: the right-hand card shows and hides', async () => {
+		await vscode.commands.executeCommand('workbench.action.toggleAuxiliaryBar');
+		await vscode.commands.executeCommand('workbench.action.toggleAuxiliaryBar');
+	});
+
 	await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	if (process.env.BRIII_SMOKE_OUT) fs.writeFileSync(process.env.BRIII_SMOKE_OUT, JSON.stringify(results, null, 2));
 	const failed = results.filter(r => !r.ok).length;

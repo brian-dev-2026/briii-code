@@ -10,6 +10,7 @@ const { checkForUpdate } = require('./lib/updater');
 const { readState, writeState, trimLog, claimOnce } = require('./lib/state');
 const { effectiveMode, isNewer } = require('./lib/version');
 const firstLaunch = require('./lib/firstLaunch');
+const studioLayout = require('./lib/studioLayout');
 const { helperCommandLine, startDetached } = require('./lib/helperLaunch');
 const { readyMessage } = require('./lib/messages');
 
@@ -17,6 +18,7 @@ const FIRST_CHECK_MS = 30 * 1000;
 const CHECK_EVERY_MS = 6 * 60 * 60 * 1000;
 const MAX_FAILURES = 3;
 const DONE_KEY = 'briii.firstLaunch.done';
+const STUDIO_KEY = 'briii.layout.studioApplied';
 
 let context;
 let product;
@@ -89,6 +91,7 @@ function activate(ctx) {
 	finishPreviousInstall();
 	trimLog(updateDir());
 	installFirstLaunchExtensions();
+	moveClaudeOnce();
 	if (product.briiiRelease) {
 		timers.push(setTimeout(() => runCheck(false), FIRST_CHECK_MS));
 		timers.push(setInterval(() => runCheck(false), CHECK_EVERY_MS));
@@ -102,6 +105,20 @@ function finishPreviousInstall() {
 	if (state.pending && !isNewer(state.pending.id, product.briiiRelease)) {
 		fs.rmSync(state.pending.path, { force: true });
 		writeState(dir, { ...state, pending: null, failures: 0 });
+	}
+}
+
+/** Studio layout: Claude Code opens in the right-hand card (see lib/studioLayout.js). */
+async function moveClaudeOnce() {
+	const config = () => vscode.workspace.getConfiguration('claudeCode');
+	const changed = await studioLayout.applyStudioOnce({
+		isDone: () => context.globalState.get(STUDIO_KEY, false),
+		markDone: () => context.globalState.update(STUDIO_KEY, true),
+		userValue: () => config().inspect('preferredLocation')?.globalValue,
+		setUserValue: v => config().update('preferredLocation', v, vscode.ConfigurationTarget.Global),
+	}).catch(err => log(`Studio layout: could not move Claude Code: ${err.message}`));
+	if (changed) {
+		log('Studio layout: Claude Code now opens in the right-hand card.');
 	}
 }
 

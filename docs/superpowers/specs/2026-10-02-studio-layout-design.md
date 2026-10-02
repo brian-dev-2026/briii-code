@@ -82,6 +82,18 @@ rest of `apple.css`.
 - **On the real PC**, after updating: Claude opens on the right, the dock's "…" lists the
   remaining tools, and Accounts and Manage are reachable.
 
+## As built (2026-10-02)
+
+- **Tabs:** modern UI draws the editor card's outline around the tab row too, so the pills sit in
+  a canvas-coloured strip at the top of the card rather than fully outside it. The open tab is
+  the card colour, and the path bar below has the card's rounded top.
+- **✳ Claude pill:** it shows the codicon "sparkle" (the ✳ character falls back to a font
+  without it) and turns the button colour while the card is open.
+- **`out/screenshot-claude.png`** was not added: the change was checked live in both themes,
+  with Claude closed and open, over the debugging port. The local `verify.ps1` run was skipped,
+  because the PC's own Briii Code was in use. CI runs `verify.ps1 -NoGui`, which includes the
+  selector check.
+
 ## Out of scope
 
 Layouts B (Focus) and C (Agent), new themes or colours, changing which tools exist, and a

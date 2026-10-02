@@ -152,16 +152,22 @@
 
 /* ---- Studio: the tool icons are a dock at the bottom of the sidebar -------- */
 /* workbench.activityBar.location "bottom" puts them in the sidebar's footer. VS Code sizes the
-   footer itself, so the dock is drawn inside it: a recessed pill in the canvas colour. */
+   footer itself, so the dock is drawn inside it: a recessed pill in the canvas colour. The
+   footer and dock padding add up to 8px across, the width VS Code subtracts when it decides
+   which icons fit; more would clip the last icon instead of moving it into "…". */
 .monaco-workbench .part.sidebar > .header-or-footer.footer {
-	padding: 0 6px 6px !important;
+	padding: 0 2px 4px !important;
 }
 .monaco-workbench .part.sidebar > .header-or-footer.footer > .composite-bar-container {
-	padding: 0 4px !important;
+	padding: 0 2px !important;
 	border-radius: 10px;
 	background-color: var(--vscode-titleBar-activeBackground);
 }
+/* The icons keep VS Code's 32px row, so the visible part is shortened and centred in the dock. */
 .monaco-workbench .part.sidebar > .header-or-footer.footer .action-item .action-label {
+	height: 22px !important;
+	margin-top: -2px !important;
+	line-height: 22px !important;
 	border-radius: 7px !important;
 }
 .monaco-workbench .part.sidebar > .header-or-footer.footer .action-item.checked .action-label {
@@ -172,12 +178,16 @@
 }
 
 /* ---- Studio: the status bar is a row of chips ------------------------------ */
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item > .statusbar-item-label {
+/* Items VS Code colours itself (error, warning, remote and similar kinds, or an item with its own
+   background) keep their own look; the chip text keeps the normal status bar colour, so it stays
+   readable while debugging recolours the bar. The deploy pill is styled above and kept. */
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item:not(.has-background-color):not([class*="-kind"]):not([id$="briii.deploy"]) > .statusbar-item-label {
 	margin: 3px 2px;
 	height: calc(100% - 6px);
 	border-radius: 99px;
 	padding: 0 9px;
 	background-color: var(--vscode-editor-background);
+	color: var(--vscode-statusBar-foreground) !important;
 	line-height: normal;
 	display: flex;
 	align-items: center;

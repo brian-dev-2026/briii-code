@@ -218,20 +218,21 @@
 	letter-spacing: 0;
 }
 
-/* ---- Studio: the tabs float above the code card ---------------------------- */
-/* The tab row takes the canvas colour, and the card's rounded top moves down to the path bar. */
+/* ---- Studio: pill tabs inside the code card -------------------------------- */
+/* Modern UI draws the card's outline around the tab row too, so a differently coloured row
+   reads as a stripe inside the card. The row is the card colour; the open tab is a soft pill. */
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container {
-	background-color: var(--vscode-titleBar-activeBackground) !important;
+	background-color: var(--vscode-editor-background) !important;
 }
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tab:not(.active) {
 	background-color: transparent !important;
 }
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tab.active {
-	background-color: var(--vscode-editor-background) !important;
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tab:not(.active):hover {
+	background-color: var(--vscode-list-hoverBackground) !important;
 }
-.monaco-workbench .part.editor > .content .editor-group-container > .title .breadcrumbs-below-tabs {
-	border-radius: 10px 10px 0 0;
-	background-color: var(--vscode-editor-background);
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tab.active {
+	background-color: var(--vscode-list-inactiveSelectionBackground) !important;
+	box-shadow: none !important;
 }
 .monaco-workbench .part.titlebar .action-label.codicon[class*="codicon-auxiliarybar-right"]:not([class*="-off-"]) {
 	background-color: var(--vscode-button-background);

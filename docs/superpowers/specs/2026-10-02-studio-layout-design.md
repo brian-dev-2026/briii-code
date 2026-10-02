@@ -84,9 +84,7 @@ rest of `apple.css`.
 
 ## As built (2026-10-02)
 
-- **Tabs:** modern UI draws the editor card's outline around the tab row too, so the pills sit in
-  a canvas-coloured strip at the top of the card rather than fully outside it. The open tab is
-  the card colour, and the path bar below has the card's rounded top.
+- **Tabs:** modern UI draws the editor card's outline around the tab row too, so a tab row in the canvas colour read as a stripe inside the card (tried, then dropped). The tab row is the card colour, and the open tab is a soft pill (list.inactiveSelectionBackground).
 - **✳ Claude pill:** it shows the codicon "sparkle" (the ✳ character falls back to a font
   without it) and turns the button colour while the card is open.
 - **`out/screenshot-claude.png`** was not added: the change was checked live in both themes,

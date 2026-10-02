@@ -12,6 +12,7 @@ const { effectiveMode, isNewer } = require('./lib/version');
 const firstLaunch = require('./lib/firstLaunch');
 const studioLayout = require('./lib/studioLayout');
 const { helperCommandLine, startDetached } = require('./lib/helperLaunch');
+const { shouldInstallOnExit } = require('./lib/exitInstall');
 const { readyMessage } = require('./lib/messages');
 
 const FIRST_CHECK_MS = 30 * 1000;
@@ -26,6 +27,7 @@ let output;
 let statusItem;
 const timers = [];
 let helperStarted = false; // Install Now already started one; Quit must not start a second
+let installRequested = false; // Install Now was chosen: the next close installs, whatever the mode
 
 // Test hooks: BRIII_UPDATE_FEED / BRIII_UPDATE_DIR point the updater at a local server and a temp
 // folder. While a test feed is set, no installer is ever started unless BRIII_UPDATE_E2E=1.
@@ -238,9 +240,10 @@ async function installNow() {
 	if (!isNewer(state.pending.id, product.briiiRelease)) {
 		return;
 	}
+	installRequested = true;
 	startHelper(state.pending, true);
-	// If the quit is cancelled (unsaved changes), that helper gives up after 60 s; after that a
-	// normal close starts a fresh one again.
+	// If the quit is cancelled (unsaved changes), that helper gives up after 60 s; after that the
+	// next close starts a fresh one, also in notify mode (installRequested).
 	setTimeout(() => { helperStarted = false; }, 70 * 1000);
 	await vscode.commands.executeCommand('workbench.action.quit');
 }
@@ -271,8 +274,16 @@ function deactivate() {
 		return;
 	}
 	const state = readState(updateDir());
-	if (state.pending && isNewer(state.pending.id, product.briiiRelease) && fs.existsSync(state.pending.path) && mode() === 'auto' &&
-		state.failures < MAX_FAILURES && mayRunInstaller()) {
+	if (shouldInstallOnExit({
+		pendingId: state.pending?.id,
+		current: product.briiiRelease,
+		installerExists: !!state.pending && fs.existsSync(state.pending.path),
+		mode: mode(),
+		failures: state.failures,
+		maxFailures: MAX_FAILURES,
+		mayRunInstaller: mayRunInstaller(),
+		installRequested,
+	})) {
 		startHelper(state.pending, false);
 	}
 }

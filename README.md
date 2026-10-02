@@ -52,6 +52,10 @@ To bring back the classic icon strip, set `"workbench.activityBar.location": "de
 
 - **Claude Code**, Anthropic's coding agent, installed on first launch. It opens in the
   right-hand card.
+- **Windsurf (formerly Codeium)**, free Copilot-style suggestions as you type, installed on
+  first launch. Click **Windsurf: Login** in the status bar and sign in with a free Windsurf
+  account; then press **Tab** to accept a grey suggestion. Code you're editing is sent to
+  Windsurf's servers to make the suggestions.
 - **Briii Sync:** your settings, keybindings, snippets and extensions, synced between PCs
   through a secret GitHub Gist.
   - Use *Briii Sync: Sync Up* and *Sync Down*.
@@ -85,8 +89,8 @@ All bundled extensions work offline from the first launch.
 - **Offline:** Extensions view → `…` → **Install from VSIX…**, or `briii --install-extension file.vsix`.
 - **Not available:** Microsoft-only extensions and services (Settings Sync, Pylance, C# Dev Kit,
   Remote-SSH, Live Share, Copilot, the MS C/C++ debugger) are licensed only for Microsoft's VS
-  Code. Briii Sync, basedpyright, clangd and Open Remote SSH cover most of them, and Claude
-  Code replaces Copilot.
+  Code. Briii Sync, basedpyright, clangd and Open Remote SSH cover most of them, Claude Code and
+  Windsurf replace Copilot.
 
 Your settings live in `%APPDATA%\Briii Code` and extensions in `~\.briii\extensions`,
 separate from any VS Code install.
@@ -118,6 +122,6 @@ Each release passes the unit tests and `verify.ps1` first.
 | `brand/icons/src/` | The icon artwork: `icon.svg` (full icon), `icon-small.svg` (16-24 px) and `glyph.svg` (the B alone). After editing, run `npm install` once, then `npm run icons`. That regenerates `brand/icons/` and `brand/logo/`. Commit the output. |
 | `defaults/settings.json` | Default settings (plain JSON). Anything you set in the app still wins. |
 | `defaults/extensions.txt` | Open VSX extensions bundled into the installer. |
-| `defaults/first-launch-extensions.txt` | Extensions installed on first launch instead, because their licences don't allow bundling (Claude Code, GitLens). |
+| `defaults/first-launch-extensions.txt` | Extensions installed on first launch instead, because their licences don't allow bundling (Claude Code, GitLens, Windsurf). |
 | `brand/extensions/` | Briii's own built-in extensions: `briii-theme` (colours), `briii-deploy` (Vercel), `briii-update` (updates and first launch) and `briii-sync` (Briii Sync). |
 | `brand/ui/apple.css` | The Studio look: dock, cards, pills, chips, type and depth. It targets VS Code internals, and the build warns when a class it uses disappears. |

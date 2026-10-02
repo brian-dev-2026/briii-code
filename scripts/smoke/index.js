@@ -91,9 +91,9 @@ async function run() {
 		return `${ids.length} extensions`;
 	}, 300000);
 
-	// Claude Code and GitLens can't be bundled (licences); briii-update installs them on first launch.
-	await check('first launch: Claude Code and GitLens installed from Open VSX', async () => {
-		const ids = ['anthropic.claude-code', 'eamodio.gitlens'];
+	// Claude Code, GitLens and Windsurf can't be bundled (licences); briii-update installs them on first launch.
+	await check('first launch: Claude Code, GitLens and Windsurf installed from Open VSX', async () => {
+		const ids = ['anthropic.claude-code', 'eamodio.gitlens', 'codeium.codeium'];
 		await poll(() => ids.every(id => vscode.extensions.getExtension(id)), 180000, `installed: ${ids.filter(id => vscode.extensions.getExtension(id)).join(', ') || 'none'}`, 2000);
 		for (const id of ids) await withTimeout(Promise.resolve(vscode.extensions.getExtension(id).activate()), 60000, id);
 		// GitLens' own settings only exist once it is installed; the shipped default must apply to it.

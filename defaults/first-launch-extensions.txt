@@ -8,3 +8,6 @@ anthropic.claude-code
 
 # Git blame, history and more. Parts are under the GitLens Pro licence.
 eamodio.gitlens
+
+# Free AI code completions as you type (sign in with a free Windsurf account). Closed source.
+Codeium.codeium

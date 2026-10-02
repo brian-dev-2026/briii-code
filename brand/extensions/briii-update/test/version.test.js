@@ -73,3 +73,11 @@ test('effectiveMode: an install folder the user cannot write to only notifies', 
 	assert.equal(effectiveMode({ ...base, appRoot: 'D:\\Apps\\Briii Code', writable: false }), 'notify');
 	assert.equal(effectiveMode({ ...base, appRoot: 'D:\\Apps\\Briii Code', writable: true }), 'auto');
 });
+
+// CI pads the run number (.0013) so GitHub lists releases in order; installed copies from before
+// the padding must still see those as newer.
+test('isNewer: a zero-padded run number compares by value', () => {
+	assert.equal(isNewer('1.135.06055-20261002.0013', '1.135.06055-20261002.12'), true);
+	assert.equal(isNewer('1.135.06055-20261002.0012', '1.135.06055-20261002.12'), false);
+	assert.equal(isNewer('1.135.06055-20261002.13', '1.135.06055-20261002.0012'), true);
+});

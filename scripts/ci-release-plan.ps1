@@ -39,7 +39,9 @@ else {
 	elseif ($ageDays -ge $MaxAgeDays) { $reason = "last release is $([int]$ageDays) days old" }
 }
 
-$release = "$vscodium-$((Get-Date).ToUniversalTime().ToString('yyyyMMdd')).$RunNumber"
+# The run number is padded (.0013): GitHub lists releases by tag text, where .9 sorts after .12.
+# The updater reads it as a number, so ids from before the padding still compare correctly.
+$release = "$vscodium-$((Get-Date).ToUniversalTime().ToString('yyyyMMdd')).$($RunNumber.ToString('D4'))"
 # A re-run of a workflow keeps its run number: if that release was already published, don't
 # build it again (gh release create would fail on the existing tag).
 try {

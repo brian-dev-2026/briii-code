@@ -128,6 +128,7 @@
 .monaco-workbench .notification-toast,
 .monaco-workbench .notifications-center,
 .context-view .monaco-menu-container,
+.context-view.monaco-menu-container,   /* VS Code 1.135 puts both classes on one element */
 .monaco-workbench .editor-widget.find-widget {
 	-webkit-backdrop-filter: blur(24px) saturate(180%);
 	backdrop-filter: blur(24px) saturate(180%);
@@ -176,7 +177,8 @@
 .monaco-workbench .part.sidebar > .header-or-footer.footer > .composite-bar-container {
 	padding: 0 2px !important;
 	border-radius: 10px;
-	background-color: var(--vscode-titleBar-activeBackground);
+	/* A tint of the sidebar's own text colour, so the dock fits any colour theme. */
+	background-color: color-mix(in srgb, currentColor 8%, transparent);
 }
 /* The icons keep VS Code's 32px row, so the visible part is shortened and centred in the dock. */
 .monaco-workbench .part.sidebar > .header-or-footer.footer .action-item .action-label {
@@ -194,15 +196,15 @@
 
 /* ---- Studio: the status bar is a row of chips ------------------------------ */
 /* Items VS Code colours itself (error, warning, remote and similar kinds, or an item with its own
-   background) keep their own look; the chip text keeps the normal status bar colour, so it stays
-   readable while debugging recolours the bar. The deploy pill is styled above and kept. */
+   background) keep their own look. A chip is a tint of the item's own text colour, so it reads on
+   any status bar: Briii's canvas-coloured one, a theme's coloured bar (Quiet Light's purple), or
+   the debugging colours. The deploy pill is styled above and kept. */
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item:not(.has-background-color):not([class*="-kind"]):not([id$="briii.deploy"]) > .statusbar-item-label {
 	margin: 3px 2px;
 	height: calc(100% - 6px);
 	border-radius: 99px;
 	padding: 0 9px;
-	background-color: var(--vscode-editor-background);
-	color: var(--vscode-statusBar-foreground) !important;
+	background-color: color-mix(in srgb, currentColor 12%, transparent);
 	line-height: normal;
 	display: flex;
 	align-items: center;

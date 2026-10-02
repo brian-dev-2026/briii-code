@@ -6,7 +6,7 @@
       <stop offset="0" stop-color="#1A2340"/><stop offset=".55" stop-color="#0D1326"/><stop offset="1" stop-color="#060912"/>
     </linearGradient>
     <linearGradient id="signal" x1="30" y1="18" x2="104" y2="110" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#6A98FF"/><stop offset=".55" stop-color="#48BEFF"/><stop offset="1" stop-color="#4DEBD4"/>
+      <stop offset="0" stop-color="#5B8CFF"/><stop offset=".55" stop-color="#3FB6FF"/><stop offset="1" stop-color="#47E6CF"/>
     </linearGradient>
   </defs>
   <path fill="url(#tile)" d="M38 0 H90 C118 0 128 10 128 38 V90 C128 118 118 128 90 128 H38 C10 128 0 118 0 90 V38 C0 10 10 0 38 0 Z"/>

@@ -136,6 +136,21 @@
 	overflow: hidden;
 }
 .quick-input-widget { padding-bottom: 6px; }
+
+/* Menus are capped in width: an extension's long display name (Windsurf's Accounts entry is a
+   whole sentence) otherwise stretches the menu across the window. Long items end in "…". */
+.context-view.monaco-menu-container {
+	max-width: min(480px, calc(100vw - 32px));
+}
+.context-view.monaco-menu-container .monaco-menu .action-menu-item {
+	min-width: 0;
+}
+.context-view.monaco-menu-container .monaco-menu .action-menu-item > .action-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
 .quick-input-widget .quick-input-header { padding-top: 10px !important; }
 
 /* ---- scrollbars: slim rounded thumbs ------------------------------------- */

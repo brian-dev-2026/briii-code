@@ -220,19 +220,26 @@
 
 /* ---- Studio: pill tabs inside the code card -------------------------------- */
 /* Modern UI draws the card's outline around the tab row too, so a differently coloured row
-   reads as a stripe inside the card. The row is the card colour; the open tab is a soft pill. */
+   reads as a stripe inside the card. The row is the card colour; the open tab is a soft pill.
+   VS Code 1.135 paints a tab's background on an inner .tab-fill layer, so only that layer is
+   coloured: colouring the tab as well draws two pills, one inside the other. */
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container {
 	background-color: var(--vscode-editor-background) !important;
 }
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tab:not(.active) {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tab,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tab.active {
+	background-color: transparent !important;
+	box-shadow: none !important;
+}
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tab > .tab-fill {
+	border-radius: 7px;
 	background-color: transparent !important;
 }
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tab:not(.active):hover {
-	background-color: var(--vscode-list-hoverBackground) !important;
-}
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tab.active {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tab.active > .tab-fill {
 	background-color: var(--vscode-list-inactiveSelectionBackground) !important;
-	box-shadow: none !important;
+}
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tab:not(.active):hover > .tab-fill {
+	background-color: var(--vscode-list-hoverBackground) !important;
 }
 .monaco-workbench .part.titlebar .action-label.codicon[class*="codicon-auxiliarybar-right"]:not([class*="-off-"]) {
 	background-color: var(--vscode-button-background);

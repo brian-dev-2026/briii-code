@@ -241,6 +241,12 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tab:not(.active):hover > .tab-fill {
 	background-color: var(--vscode-list-hoverBackground) !important;
 }
+/* VS Code paints the close button's box in the tab's hover colour (to cover a long name). With
+   the colour on .tab-fill that box shows as soon as the tab is hovered; the × keeps its own
+   hover highlight. */
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tab > .tab-actions {
+	background-color: transparent !important;
+}
 .monaco-workbench .part.titlebar .action-label.codicon[class*="codicon-auxiliarybar-right"]:not([class*="-off-"]) {
 	background-color: var(--vscode-button-background);
 	color: var(--vscode-button-foreground) !important;

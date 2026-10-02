@@ -92,6 +92,8 @@ rest of `apple.css`.
   because the PC's own Briii Code was in use. CI runs `verify.ps1 -NoGui`, which includes the
   selector check.
 
+- **Claude card tint:** dropped. Claude Code's chat is a webview drawn in a layer above the card, so the tint and inner border only showed in the uncovered strips and made the edge uneven. The card matches the other cards.
+
 ## Out of scope
 
 Layouts B (Focus) and C (Agent), new themes or colours, changing which tools exist, and a

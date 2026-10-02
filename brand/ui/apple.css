@@ -270,8 +270,5 @@
 	box-shadow: none;
 }
 
-/* ---- Studio: the Claude card on the right gets a faint accent tint ---------- */
-.monaco-workbench .part.auxiliarybar {
-	background-image: linear-gradient(color-mix(in srgb, var(--vscode-focusBorder) 5%, transparent), color-mix(in srgb, var(--vscode-focusBorder) 5%, transparent)) !important;
-	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--vscode-focusBorder) 28%, transparent);
-}
+/* The Claude card has no tint of its own: Claude Code's chat is a webview drawn in a layer above
+   the card, so a tint or inner border only showed in the strips the chat leaves uncovered. */

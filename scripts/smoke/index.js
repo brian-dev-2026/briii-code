@@ -446,10 +446,25 @@ async function run() {
 		assert(!gitlens.length, `open: ${gitlens.map(t => t.label).join(', ')}`);
 	});
 
-	// Studio layout: settings applied from the first launch (rebrand.mjs patches the default).
-	await check('studio: the tool icons are a dock at the bottom of the sidebar', () => {
+	// Studio layout. The tool icons stay VS Code's strip on the left (the bottom dock was too far
+	// away and hid 6 of the 14 tools behind "…").
+	await check('studio: the tool icons are the strip on the left', () => {
 		const at = vscode.workspace.getConfiguration('workbench').get('activityBar.location');
-		assert(at === 'bottom', `workbench.activityBar.location=${JSON.stringify(at)} (want "bottom")`);
+		assert(at === 'default', `workbench.activityBar.location=${JSON.stringify(at)} (want "default")`);
+	});
+
+	await check('studio: Ctrl+Alt+W hides and shows the code area', async () => {
+		const key = 'ctrl+alt+w';
+		const keys = vscode.extensions.getExtension('briii.briii-defaults').packageJSON.contributes.keybindings || [];
+		const bound = keys.find(k => k.key === key);
+		assert(bound && bound.command === 'workbench.action.toggleEditorVisibility', `${key} is ${JSON.stringify(bound)}`);
+		// Another extension on the same key would win (REST Client took ctrl+alt+e).
+		const clash = vscode.extensions.all.filter(e => e.id !== 'briii.briii-defaults')
+			.flatMap(e => [].concat(e.packageJSON.contributes?.keybindings || []).map(k => ({ id: e.id, k })))
+			.filter(({ k }) => [k.key, k.win].some(x => (x || '').toLowerCase() === key));
+		assert(!clash.length, `also bound by ${clash.map(c => `${c.id} (${c.k.command})`).join(', ')}`);
+		await vscode.commands.executeCommand('workbench.action.toggleEditorVisibility');
+		await vscode.commands.executeCommand('workbench.action.toggleEditorVisibility');
 	});
 
 	await check('studio: Claude Code opens in the right-hand card', () => {

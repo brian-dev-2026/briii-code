@@ -117,10 +117,6 @@ const jsPatches = [{
 	find: /("workbench\.secondarySideBar\.defaultVisibility":\{type:"string",enum:\[[^\]]*\],default:)"visibleInWorkspace"/,
 	replace: '$1"hidden"',
 }, {
-	what: 'put the tool icons in a dock at the bottom of the sidebar (Studio layout)',
-	find: /("workbench\.activityBar\.location":\{type:"string",enum:\["default","top","bottom","hidden"\],default:)"default"/,
-	replace: '$1"bottom"',
-}, {
 	what: 'open localhost links in the Integrated Browser by default',
 	find: /("workbench\.browser\.openLocalhostLinks":\{type:"boolean",default:)!1/,
 	replace: '$1!0',
@@ -149,18 +145,15 @@ updateChecksum(jsRel);
 // build without the modern UI, that layout is flat, so the window would open flat and then jump
 // to the cards. Drop saved layouts that aren't modern UI (as VS Code already does when developing
 // extensions); that launch shows only the background colour, and the next one draws cards again.
-// The same goes once for a layout with the old icon strip (the Studio layout docks the icons):
-// only once, remembered in localStorage, so someone who brings the strip back keeps a splash.
 const splashRel = 'vs/code/electron-browser/workbench/workbench.js';
 const splashPath = path.join(outDir, ...splashRel.split('/'));
 const splash = fs.readFileSync(splashPath, 'utf8');
 const splashFind = /([\w$]+)&&[\w$]+\.extensionDevelopmentPath&&\(\1\.layoutInfo=void 0\)/;
 if (splashFind.test(splash)) {
 	fs.writeFileSync(splashPath, splash.replace(splashFind,
-		(m, r) => `${m},${r}&&${r}.layoutInfo&&${r}.layoutInfo.modernUI!==!0&&(${r}.layoutInfo=void 0)` +
-			`,${r}&&${r}.layoutInfo&&${r}.layoutInfo.activityBarWidth>0&&(()=>{try{return!localStorage.getItem("briii.studioLayout")&&(localStorage.setItem("briii.studioLayout","1"),!0)}catch{return!1}})()&&(${r}.layoutInfo=void 0)`));
+		(m, r) => `${m},${r}&&${r}.layoutInfo&&${r}.layoutInfo.modernUI!==!0&&(${r}.layoutInfo=void 0)`));
 	updateChecksum(splashRel);
-	console.log('Patched: ignore saved startup layouts from before the modern UI and the Studio dock');
+	console.log('Patched: ignore saved startup layouts from before the modern UI');
 } else {
 	console.warn('WARNING: could not patch the startup splash - pattern not found in this VS Code version');
 }
@@ -236,6 +229,9 @@ fs.writeFileSync(path.join(binDir, brand.applicationName), sh);
 // configurationDefaults changes the *default* value, so anything the user sets still wins.
 const settingsFile = path.join(defaultsDir, 'settings.json');
 const settings = fs.existsSync(settingsFile) ? JSON.parse(fs.readFileSync(settingsFile, 'utf8')) : {};
+// Default keyboard shortcuts ship the same way; the user's own keybindings.json still wins.
+const keybindingsFile = path.join(defaultsDir, 'keybindings.json');
+const keybindings = fs.existsSync(keybindingsFile) ? JSON.parse(fs.readFileSync(keybindingsFile, 'utf8')) : [];
 const extDir = path.join(appDir, 'extensions', 'briii-defaults');
 fs.mkdirSync(extDir, { recursive: true });
 fs.writeFileSync(path.join(extDir, 'package.json'), JSON.stringify({
@@ -247,7 +243,7 @@ fs.writeFileSync(path.join(extDir, 'package.json'), JSON.stringify({
 	license: 'MIT',
 	engines: { vscode: '*' },
 	categories: ['Other'],
-	contributes: { configurationDefaults: settings },
+	contributes: { configurationDefaults: settings, keybindings },
 }, null, '\t') + '\n');
 
 console.log(`Rebranded ${oldExe} -> ${newExe} (${Object.keys(settings).length} default settings)`);

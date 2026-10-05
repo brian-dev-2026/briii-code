@@ -94,6 +94,8 @@ rest of `apple.css`.
 
 - **Claude card tint:** dropped. Claude Code's chat is a webview drawn in a layer above the card, so the tint and inner border only showed in the uncovered strips and made the edge uneven. The card matches the other cards.
 
+- **Dock reverted (2026-10-06):** the bottom dock was far from where people look and hid 6 of the 14 tools behind "…", so the tool icons are VS Code's strip on the left again (the dock CSS stays for anyone who picks `bottom`). **Ctrl+Alt+W** toggles the code area (`defaults/keybindings.json`, shipped in `briii-defaults`), so Explorer and Claude can share the window; Ctrl+Alt+E was taken by REST Client.
+
 ## Out of scope
 
 Layouts B (Focus) and C (Agent), new themes or colours, changing which tools exist, and a

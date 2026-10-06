@@ -67,7 +67,10 @@ async function run() {
 			'workbench.iconTheme': 'material-icon-theme',
 			'editor.defaultFormatter': 'esbenp.prettier-vscode',
 			'editor.formatOnSave': true,
-			'workbench.experimental.modernUI': true,
+			'workbench.experimental.modernUI': false,
+			'window.controlsStyle': 'custom',
+			'window.menuBarVisibility': 'compact',
+			'workbench.layoutControl.enabled': false,
 			'explorer.fileNesting.enabled': true,
 			'redhat.telemetry.enabled': false,
 			'workbench.browser.openLocalhostLinks': true,
@@ -446,11 +449,19 @@ async function run() {
 		assert(!gitlens.length, `open: ${gitlens.map(t => t.label).join(', ')}`);
 	});
 
-	// Studio layout. The tool icons stay VS Code's strip on the left (the bottom dock was too far
-	// away and hid 6 of the 14 tools behind "…").
-	await check('studio: the tool icons are the strip on the left', () => {
+	// macOS title bar + Cursor-style workbench: the tools are a row at the top of the sidebar, with
+	// the ☰ menu in front of them (rebrand.mjs patches these defaults for the first launch).
+	await check('studio: the tool icons are a row at the top of the sidebar', () => {
 		const at = vscode.workspace.getConfiguration('workbench').get('activityBar.location');
-		assert(at === 'default', `workbench.activityBar.location=${JSON.stringify(at)} (want "default")`);
+		assert(at === 'top', `workbench.activityBar.location=${JSON.stringify(at)} (want "top")`);
+	});
+
+	await check('studio: the Explorer header has a Claude button', () => {
+		const menus = vscode.extensions.getExtension('briii.briii-defaults').packageJSON.contributes.menus || {};
+		const item = (menus['view/title'] || []).find(m => m.command === 'claude-vscode.sidebar.open');
+		assert(item && /workbench\.explorer\.fileView/.test(item.when), `view/title: ${JSON.stringify(menus['view/title'])}`);
+		const claude = vscode.extensions.getExtension('anthropic.claude-code');
+		if (claude) assert(claude.packageJSON.contributes.commands.some(c => c.command === 'claude-vscode.sidebar.open'), 'Claude Code no longer has claude-vscode.sidebar.open');
 	});
 
 	await check('studio: Ctrl+Alt+W hides and shows the code area', async () => {

@@ -62,23 +62,7 @@
 	border-left: 6px solid transparent !important;
 	border-right: 6px solid transparent !important;
 	background-clip: padding-box;
-	border-radius: 12px;
-}
-
-/* ---- editor tabs: Safari-style floating pills ---------------------------- */
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab {
-	margin: 4px 0 4px 4px;
-	height: calc(var(--editor-group-tab-height) - 8px) !important;
-	border-radius: 7px;
-	border-right: none !important;
-	font-size: 12.5px;
-}
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {
-	box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.12);
-}
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab > .tab-border-top-container,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab > .tab-border-bottom-container {
-	display: none !important;
+	border-radius: 6px;
 }
 
 /* ---- activity bar: rounded square highlight instead of a side stripe ----- */
@@ -194,81 +178,72 @@
 	display: none !important;
 }
 
-/* ---- Studio: the status bar is a row of chips ------------------------------ */
-/* Items VS Code colours itself (error, warning, remote and similar kinds, or an item with its own
-   background) keep their own look. A chip is a tint of the item's own text colour, so it reads on
-   any status bar: Briii's canvas-coloured one, a theme's coloured bar (Quiet Light's purple), or
-   the debugging colours. The deploy pill is styled above and kept. */
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item:not(.has-background-color):not([class*="-kind"]):not([id$="briii.deploy"]) > .statusbar-item-label {
-	margin: 3px 2px;
-	height: calc(100% - 6px);
-	border-radius: 99px;
-	padding: 0 9px;
-	background-color: color-mix(in srgb, currentColor 12%, transparent);
-	line-height: normal;
-	display: flex;
-	align-items: center;
-}
+/* ==========================================================================
+   macOS title bar + Cursor-style workbench (2026-10-06)
+   ========================================================================== */
 
-/* ---- Studio: the ✳ Claude button ------------------------------------------- */
-/* Extensions can't add title-bar buttons, so the layout control "Toggle Secondary Side Bar"
-   (Ctrl+Alt+B), which shows and hides the Claude card, becomes a labelled pill. Its icon id
-   differs between on and off, hence the attribute selector. */
-.monaco-workbench .part.titlebar .action-label.codicon[class*="codicon-auxiliarybar-right"] {
+/* ---- macOS traffic lights ------------------------------------------------- */
+/* window.controlsStyle "custom" (default via rebrand.mjs, also in the main process) makes VS Code
+   draw its own minimize / maximize / close as plain elements, so they can be styled: red, yellow
+   and green circles on the left in macOS order, symbols on hover, grey while the window is
+   inactive. Windows 11's Snap Layouts flyout needs the native buttons, so it goes away. */
+.monaco-workbench .part.titlebar .window-controls-container {
+	position: absolute !important;
+	left: 12px;
+	top: 0;
+	height: 100%;
 	width: auto !important;
-	padding: 0 10px !important;
-	border-radius: 8px !important;
-	background-color: var(--vscode-editor-background);
-	box-shadow: inset 0 0 0 1px var(--vscode-widget-border, transparent);
-}
-.monaco-workbench .part.titlebar .action-label.codicon[class*="codicon-auxiliarybar-right"] {
-	display: inline-flex !important;
+	display: flex !important;
 	align-items: center;
-	gap: 6px;
+	gap: 8px;
+	z-index: 10;
 }
-.monaco-workbench .part.titlebar .action-label.codicon[class*="codicon-auxiliarybar-right"]::before {
-	content: "\ec10";   /* the codicon "sparkle" */
+.monaco-workbench .part.titlebar .titlebar-left {
+	padding-left: 74px !important;
 }
-.monaco-workbench .part.titlebar .action-label.codicon[class*="codicon-auxiliarybar-right"]::after {
-	content: "Claude";
-	font: 500 12px/1 var(--monaco-font);
-	letter-spacing: 0;
+.monaco-workbench .part.titlebar .window-appicon {
+	display: none !important;
 }
-
-/* ---- Studio: pill tabs inside the code card -------------------------------- */
-/* Modern UI draws the card's outline around the tab row too, so a differently coloured row
-   reads as a stripe inside the card. The row is the card colour; the open tab is a soft pill.
-   VS Code 1.135 paints a tab's background on an inner .tab-fill layer, so only that layer is
-   coloured: colouring the tab as well draws two pills, one inside the other. */
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container {
-	background-color: var(--vscode-editor-background) !important;
+.monaco-workbench .part.titlebar .window-controls-container .window-icon {
+	width: 12px !important;
+	height: 12px !important;
+	min-width: 0 !important;
+	padding: 0 !important;
+	margin: 0 !important;
+	border-radius: 50%;
+	display: grid !important;
+	place-items: center;
+	box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.18);
 }
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tab,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tab.active {
-	background-color: transparent !important;
-	box-shadow: none !important;
+.monaco-workbench .part.titlebar .window-controls-container .window-close { order: 0; background-color: #ff5f57 !important; }
+.monaco-workbench .part.titlebar .window-controls-container .window-minimize { order: 1; background-color: #febc2e !important; }
+.monaco-workbench .part.titlebar .window-controls-container .window-max-restore { order: 2; background-color: #28c840 !important; }
+.monaco-workbench .part.titlebar .window-controls-container .window-icon::before {
+	font: 700 10px/1 system-ui, sans-serif !important;
+	color: rgba(0, 0, 0, 0.55);
+	opacity: 0;
 }
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tab > .tab-fill {
-	border-radius: 7px;
-	background-color: transparent !important;
-}
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tab.active > .tab-fill {
-	background-color: var(--vscode-list-inactiveSelectionBackground) !important;
-}
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tab:not(.active):hover > .tab-fill {
-	background-color: var(--vscode-list-hoverBackground) !important;
-}
-/* VS Code paints the close button's box in the tab's hover colour (to cover a long name). With
-   the colour on .tab-fill that box shows as soon as the tab is hovered; the × keeps its own
-   hover highlight. */
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tab > .tab-actions {
-	background-color: transparent !important;
-}
-.monaco-workbench .part.titlebar .action-label.codicon[class*="codicon-auxiliarybar-right"]:not([class*="-off-"]) {
-	background-color: var(--vscode-button-background);
-	color: var(--vscode-button-foreground) !important;
-	box-shadow: none;
+.monaco-workbench .part.titlebar .window-controls-container .window-close::before { content: "\00d7" !important; }
+.monaco-workbench .part.titlebar .window-controls-container .window-minimize::before { content: "\2212" !important; }
+.monaco-workbench .part.titlebar .window-controls-container .window-max-restore::before { content: "+" !important; }
+.monaco-workbench .part.titlebar .window-controls-container:hover .window-icon::before { opacity: 1; }
+.monaco-workbench .part.titlebar.inactive .window-controls-container:not(:hover) .window-icon {
+	background-color: #d6d6d6 !important;
+	box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.12);
 }
 
-/* The Claude card has no tint of its own: Claude Code's chat is a webview drawn in a layer above
-   the card, so a tint or inner border only showed in the strips the chat leaves uncovered. */
+/* ---- Cursor-style tool row at the top of the sidebar ---------------------- */
+/* workbench.activityBar.location "top" puts the tools in the sidebar's header, and the compact
+   menu bar puts the ☰ in front of them. Icons are grey; the active one gets a soft square. */
+.monaco-workbench .part.sidebar > .header-or-footer.header {
+	border-bottom: 1px solid var(--vscode-sideBar-border, transparent);
+}
+.monaco-workbench .part.sidebar > .header-or-footer.header .action-item .action-label {
+	border-radius: 6px !important;
+}
+.monaco-workbench .part.sidebar > .header-or-footer.header .action-item.checked .action-label {
+	background-color: var(--vscode-activityBarTop-activeBackground) !important;
+}
+.monaco-workbench .part.sidebar > .header-or-footer.header .action-item .active-item-indicator {
+	display: none !important;
+}

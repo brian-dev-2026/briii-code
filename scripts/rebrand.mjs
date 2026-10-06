@@ -109,9 +109,25 @@ updateChecksum(cssRel);
 // Built-in defaults that are read before extensions load (so defaults/settings.json is too late
 // for them). Each patch is optional: if VS Code changes the code, warn instead of failing.
 const jsPatches = [{
-	what: 'use the modern UI (panels as floating, rounded cards)',
-	find: /("workbench\.experimental\.modernUI":\{type:"boolean",default:)!1/,
-	replace: '$1!0',
+	what: 'put the tool icons in a row at the top of the sidebar (Cursor-style)',
+	find: /("workbench\.activityBar\.location":\{type:"string",enum:\["default","top","bottom","hidden"\],default:)"default"/,
+	replace: '$1"top"',
+}, {
+	what: 'show the menu as a ☰ beside those tools (compact menu bar)',
+	find: /("window\.menuBarVisibility":\{type:"string",enum:\["classic","visible","toggle","hidden","compact"\],markdownEnumDescriptions:\[[^\]]*\],default:)[\w$]+\?"compact":"classic"/,
+	replace: '$1"compact"',
+}, {
+	what: 'keep the title bar clean (no layout buttons)',
+	find: /("workbench\.layoutControl\.enabled":\{type:"boolean",default:)!0/,
+	replace: '$1!1',
+}, {
+	what: 'default window.controlsStyle to "custom" (an application setting: extension defaults are ignored)',
+	find: /("window\.controlsStyle":\{type:"string",enum:\["native","custom","hidden"\],default:)"native"/,
+	replace: '$1"custom"',
+}, {
+	what: "draw VS Code's own window buttons, styled as macOS traffic lights",
+	find: /\?\.controlsStyle;return ([\w$]+)==="custom"\|\|\1==="hidden"\?\1:"native"/,
+	replace: '?.controlsStyle;return $1==="native"||$1==="hidden"?$1:"custom"',
 }, {
 	what: 'hide the (chat) secondary side bar by default',
 	find: /("workbench\.secondarySideBar\.defaultVisibility":\{type:"string",enum:\[[^\]]*\],default:)"visibleInWorkspace"/,
@@ -141,19 +157,33 @@ for (const patch of jsPatches) {
 fs.writeFileSync(jsPath, js);
 updateChecksum(jsRel);
 
-// The startup splash redraws the layout saved by the previous session. After an upgrade from a
-// build without the modern UI, that layout is flat, so the window would open flat and then jump
-// to the cards. Drop saved layouts that aren't modern UI (as VS Code already does when developing
-// extensions); that launch shows only the background colour, and the next one draws cards again.
+// The main process decides the window buttons before any settings defaults load, with the same
+// code: default it to VS Code's own (custom) buttons too. "native" in settings still wins.
+{
+	const mainPath = path.join(outDir, 'main.js');
+	const main = fs.readFileSync(mainPath, 'utf8');
+	const find = /\?\.controlsStyle;return ([\w$]+)==="custom"\|\|\1==="hidden"\?\1:"native"/;
+	if (find.test(main)) {
+		fs.writeFileSync(mainPath, main.replace(find, '?.controlsStyle;return $1==="native"||$1==="hidden"?$1:"custom"')); // not in product.json checksums
+		console.log("Patched: draw VS Code's own window buttons (main process)");
+	} else {
+		console.warn('WARNING: could not default the window buttons in the main process - pattern not found');
+	}
+}
+
+// The startup splash redraws the layout saved by the previous session. Briii used VS Code's modern
+// UI (floating cards) until 2026-10-06 and is flat now, so after that upgrade the window would open
+// with cards and then jump. Drop saved layouts that are modern UI (as VS Code already does when
+// developing extensions); that launch shows only the background colour.
 const splashRel = 'vs/code/electron-browser/workbench/workbench.js';
 const splashPath = path.join(outDir, ...splashRel.split('/'));
 const splash = fs.readFileSync(splashPath, 'utf8');
 const splashFind = /([\w$]+)&&[\w$]+\.extensionDevelopmentPath&&\(\1\.layoutInfo=void 0\)/;
 if (splashFind.test(splash)) {
 	fs.writeFileSync(splashPath, splash.replace(splashFind,
-		(m, r) => `${m},${r}&&${r}.layoutInfo&&${r}.layoutInfo.modernUI!==!0&&(${r}.layoutInfo=void 0)`));
+		(m, r) => `${m},${r}&&${r}.layoutInfo&&${r}.layoutInfo.modernUI===!0&&(${r}.layoutInfo=void 0)`));
 	updateChecksum(splashRel);
-	console.log('Patched: ignore saved startup layouts from before the modern UI');
+	console.log('Patched: ignore saved startup layouts from the modern UI (cards)');
 } else {
 	console.warn('WARNING: could not patch the startup splash - pattern not found in this VS Code version');
 }
@@ -232,6 +262,10 @@ const settings = fs.existsSync(settingsFile) ? JSON.parse(fs.readFileSync(settin
 // Default keyboard shortcuts ship the same way; the user's own keybindings.json still wins.
 const keybindingsFile = path.join(defaultsDir, 'keybindings.json');
 const keybindings = fs.existsSync(keybindingsFile) ? JSON.parse(fs.readFileSync(keybindingsFile, 'utf8')) : [];
+// Extra menu items, e.g. Claude Code's own "Open in Side Bar" in the Explorer's header. An item
+// whose command isn't installed (Claude Code before its first-launch install) simply doesn't show.
+const menusFile = path.join(defaultsDir, 'menus.json');
+const menus = fs.existsSync(menusFile) ? JSON.parse(fs.readFileSync(menusFile, 'utf8')) : {};
 const extDir = path.join(appDir, 'extensions', 'briii-defaults');
 fs.mkdirSync(extDir, { recursive: true });
 fs.writeFileSync(path.join(extDir, 'package.json'), JSON.stringify({
@@ -243,7 +277,7 @@ fs.writeFileSync(path.join(extDir, 'package.json'), JSON.stringify({
 	license: 'MIT',
 	engines: { vscode: '*' },
 	categories: ['Other'],
-	contributes: { configurationDefaults: settings, keybindings },
+	contributes: { configurationDefaults: settings, keybindings, menus },
 }, null, '\t') + '\n');
 
 console.log(`Rebranded ${oldExe} -> ${newExe} (${Object.keys(settings).length} default settings)`);

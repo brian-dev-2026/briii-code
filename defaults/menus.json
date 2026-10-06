@@ -1,0 +1,5 @@
+{
+	"view/title": [
+		{ "command": "claude-vscode.sidebar.open", "when": "view == workbench.explorer.fileView", "group": "navigation@0" }
+	]
+}

@@ -30,24 +30,23 @@ The installer is unsigned, so the first time you run it Windows SmartScreen show
 - An **Update ready** item in the status bar offers **Install Now**.
 - `briii.update.mode` switches this to `notify` or `off`.
 
-## The Studio layout
+## The look
 
 Briii Code doesn't look like stock VS Code:
 
-- **Tool dock:** the Explorer, Search, Source Control and other tools sit in a dock at the
-  bottom of the sidebar, instead of a strip down the left edge. The tools that don't fit are
-  behind its **…** button.
-- **Floating cards:** the sidebar, editor and panels are rounded cards on a canvas. The title
-  bar holds one **☰** menu button, a search box, and Accounts and Settings.
-- **Pill tabs and status chips:** the open tab is a soft pill, and the status bar is a row of
-  small chips.
-- **✨ Claude:** the title-bar pill, or **Ctrl+Alt+B**, shows and hides Claude Code in its own
-  card on the right. Your code stays visible next to the chat.
-- **Briii Light and Briii Dark:** the themes follow Windows' light/dark setting. The UI uses
-  the Inter font, Material Icon Theme file icons and frosted popups.
+- **macOS title bar:** red, yellow and green window buttons on the left (× − + on hover), a
+  search box in the middle, and nothing else.
+- **Cursor-style workbench:** a near-black, monochrome Briii Dark theme with flat panels
+  separated by thin lines. The **☰ menu and the tool icons sit in one row at the top of the
+  sidebar.**
+- **Claude Code** opens in its own panel on the right. Use the **✳ Claude Code** item in the
+  status bar, **Ctrl+Alt+B**, or the Claude button on the Explorer's header (hover the
+  Explorer).
+- **Ctrl+Alt+W** hides or shows the code area, so the Explorer and Claude can share the window.
+- **Briii Light and Briii Dark** follow Windows' light/dark setting. The UI uses the Inter font
+  and Material Icon Theme file icons.
 
-To bring back the classic icon strip, set `"workbench.activityBar.location": "default"`.
-
+To get Windows' own window buttons back (with Snap Layouts), set `"window.controlsStyle": "native"`.
 ## What's built in
 
 - **Claude Code**, Anthropic's coding agent, installed on first launch. It opens in the
@@ -73,7 +72,7 @@ To bring back the classic icon strip, set `"workbench.activityBar.location": "de
   GitHub Actions and Project Manager.
 - **Python:** the Python extension, the debugger and basedpyright (instead of Pylance), with
   Ruff for formatting and organising imports.
-- **GitHub:** click **Accounts** in the title bar, then **Sign in with GitHub**. Briii Code
+- **GitHub:** click **Accounts** (top right), then **Sign in with GitHub**. Briii Code
   isn't a Microsoft build, so GitHub uses a one-time code:
   - Click **Copy & Continue to GitHub**, paste the code on the page that opens and click
     **Authorize**.
@@ -124,4 +123,4 @@ Each release passes the unit tests and `verify.ps1` first.
 | `defaults/extensions.txt` | Open VSX extensions bundled into the installer. |
 | `defaults/first-launch-extensions.txt` | Extensions installed on first launch instead, because their licences don't allow bundling (Claude Code, GitLens, Windsurf). |
 | `brand/extensions/` | Briii's own built-in extensions: `briii-theme` (colours), `briii-deploy` (Vercel), `briii-update` (updates and first launch) and `briii-sync` (Briii Sync). |
-| `brand/ui/apple.css` | The Studio look: dock, cards, pills, chips, type and depth. It targets VS Code internals, and the build warns when a class it uses disappears. |
+| `brand/ui/apple.css` | The look: macOS window buttons, the sidebar tool row, type, menus and popups. It targets VS Code internals, and the build warns when a class it uses disappears. |

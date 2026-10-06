@@ -34,7 +34,7 @@ pill people found hard to use.
 | Clean title bar | `workbench.layoutControl.enabled: false` (settings + `jsPatches`) |
 | Flat workbench | the modern-UI patch and setting were removed. The splash patch now drops a saved modern-UI layout, so the first launch after the upgrade doesn't show cards and then jump. |
 | Cursor colours | `brand/extensions/briii-theme/themes/briii-dark.json` |
-| Claude button | `defaults/menus.json` → `briii-defaults › contributes.menus`, `view/title` on `workbench.explorer.fileView` with Claude Code's own `claude-vscode.sidebar.open` (and its logo). It's hidden until Claude Code is installed. |
+| Claude buttons, empty code area | `brand/extensions/briii-layout` (see the follow-up below): `view/title` on `workbench.explorer.fileView` with Claude Code's own `claude-vscode.sidebar.open` (and its logo), hidden until Claude Code is installed, plus Hide Claude and the × in Claude's panel. `defaults/menus.json` is empty now. |
 
 ## Follow-up: opening and closing (2026-10-06)
 
@@ -64,9 +64,14 @@ With the title-bar buttons gone, Claude's panel had nothing to click to close it
 
 ## Testing
 
-- **Smoke tests:** default settings, the top tool row, the Claude menu item (and that Claude Code
-  still has the command), Ctrl+Alt+W, and the right-hand card.
+- **Smoke tests:** default settings, the top tool row, the Claude open and close buttons (and that
+  Claude Code still has the command and view), Ctrl+Alt+W with no key clashes, and
+  `hideEmptyCodeArea` on by default.
+- **Unit tests:** `brand/extensions/briii-layout/test/codeArea.test.js`.
+- **Released and installed:** `1.135.06055-20261006.0024`.
 - **Checked live over CDP:**
   - the traffic lights active, inactive and on hover;
   - a fresh profile's first launch, showing flat panels, ☰ in the sidebar row and a clean title bar;
-  - the Claude button appearing on hover.
+  - the Claude button appearing on hover;
+  - the code area hiding when the last file closes and coming back when one opens, and the ×
+    in Claude's panel header.

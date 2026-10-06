@@ -75,6 +75,40 @@ begin
   Log('Staged update: closed programs left running from ' + App + ' (exit ' + IntToStr(Code) + ')');
 end;
 
+const
+  WorkbenchHtml = 'resources\app\out\vs\code\electron-browser\workbench\workbench.html';
+
+// The background extension (shalldie.background) applies its images by adding a block to the
+// installed workbench.html, between <!-- vscode-background-start ... --> and
+// <!-- vscode-background-end -->. A new version's files don't have it, so it is copied over
+// (any copy already there is replaced). PowerShell does the text work: it reads and writes the
+// file as UTF-8, which Inno's Ansi file functions can't promise for image paths.
+procedure CarryBackground(FromHtml, ToHtml: String);
+var
+  Text: AnsiString;
+  Code: Integer;
+  F, T: String;
+begin
+  if not FileExists(FromHtml) or not FileExists(ToHtml) then exit;
+  if not LoadStringFromFile(FromHtml, Text) then exit;
+  if Pos('<!-- vscode-background-start', Text) = 0 then exit;
+  F := FromHtml;
+  T := ToHtml;
+  StringChangeEx(F, '''', '''''', True); // a quote inside a PowerShell '...' string is doubled
+  StringChangeEx(T, '''', '''''', True);
+  Exec(ExpandConstant('{sysnative}\WindowsPowerShell\v1.0\powershell.exe'),
+    '-NoProfile -NonInteractive -Command "' +
+    '$u = New-Object Text.UTF8Encoding $false; ' +
+    '$r = ''(?s)<!-- vscode-background-start.*?<!-- vscode-background-end -->''; ' +
+    '$m = [regex]::Match([IO.File]::ReadAllText(''' + F + ''', $u), $r); ' +
+    'if (-not $m.Success) { exit 1 }; ' +
+    '$t = [regex]::Replace([IO.File]::ReadAllText(''' + T + ''', $u), ''(?s)'' + $r + ''\r?\n?'', ''''); ' +
+    '$i = $t.LastIndexOf(''</html>''); if ($i -lt 0) { $i = $t.Length }; ' +
+    '[IO.File]::WriteAllText(''' + T + ''', $t.Insert($i, $m.Value + [char]10), $u)"',
+    '', SW_HIDE, ewWaitUntilTerminated, Code);
+  Log('Carried the background from ' + FromHtml + ' to ' + ToHtml + ' (exit ' + IntToStr(Code) + ')');
+end;
+
 // Waits (silently, up to a day) while someone uses the old version, then swaps. When the app has
 // just closed, its terminals and servers may still hold files for a moment, so a failed swap is
 // retried every 2 s; after KillAfterSec what still runs from the app folder is closed, and after
@@ -94,6 +128,8 @@ begin
       Waited := Waited + 1;
     end;
     if CheckForMutexes(Mutex) then exit;
+    // Now, not earlier: the background may have been applied while the old version was open.
+    if Tried = 0 then CarryBackground(App + '\' + WorkbenchHtml, App + '\_\' + WorkbenchHtml);
     if SwapStagedIn(App, Items) then begin
       Result := True;
       exit;

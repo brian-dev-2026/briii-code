@@ -182,10 +182,25 @@ begin
   if SwapFailed then Result := 10 else Result := 0;
 end;
 
+// A normal install clears the old files ([InstallDelete]) first, so the background extension's
+// block is kept from a copy of the old workbench.html (an /update=1 run carries it at the swap).
+function BackgroundCopy: String;
+begin
+  Result := ExpandConstant('{tmp}\workbench.html.before');
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  Result := '';
+  if not IsUpdate and FileExists(ExpandConstant('{app}\') + WorkbenchHtml) then
+    FileCopy(ExpandConstant('{app}\') + WorkbenchHtml, BackgroundCopy, False);
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then begin
-    if IsUpdate then FinishStagedUpdate;
+    if IsUpdate then FinishStagedUpdate
+    else CarryBackground(BackgroundCopy, ExpandConstant('{app}\') + WorkbenchHtml);
     if WizardIsTaskSelected('addtopath') then AddToPath(ExpandConstant('{app}\bin'));
   end;
 end;

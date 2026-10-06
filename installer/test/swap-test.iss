@@ -1,5 +1,6 @@
 ; Test harness for staged-update.iss: runs FinishStagedUpdateIn against a fake app folder and
-; writes "ok" or "failed" to /result=<file>. Installs nothing. Built and run by swap.test.ps1.
+; writes "ok" or "failed" to /result=<file>. With /carryfrom= and /carryto= it runs only
+; CarryBackground between two workbench.html files. Installs nothing. Built and run by swap.test.ps1.
 [Setup]
 AppName=Briii swap test
 AppVersion=1
@@ -17,6 +18,12 @@ var
   Ok: Boolean;
   Text: String;
 begin
+  if ExpandConstant('{param:carryfrom}') <> '' then begin
+    CarryBackground(ExpandConstant('{param:carryfrom}'), ExpandConstant('{param:carryto}'));
+    SaveStringToFile(ExpandConstant('{param:result}'), 'ok', False);
+    Result := False;
+    exit;
+  end;
   Ok := FinishStagedUpdateIn(ExpandConstant('{param:app}'), 'BriiiSwapTestMutex',
     SplitItems(ExpandConstant('{param:items}')),
     StrToInt(ExpandConstant('{param:killafter|30}')), StrToInt(ExpandConstant('{param:giveup|600}')));

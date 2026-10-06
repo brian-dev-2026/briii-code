@@ -45,8 +45,14 @@ Briii Code doesn't look like stock VS Code:
 - **The code area hides when you close your last file,** so the Explorer, Claude and the terminal
   get the room. Opening a file brings it back. **Ctrl+Alt+W** hides or shows it by hand, and
   `briii.layout.hideEmptyCodeArea: false` turns the automatic hiding off.
-- **Briii Light and Briii Dark** follow Windows' light/dark setting. The UI uses the Inter font
-  and Material Icon Theme file icons.
+- **Briii Dark** is the default theme, and any other theme you pick (Manage ⚙ › Themes ›
+  Color Theme) stays picked. To follow Windows' light/dark setting with Briii Light and Briii
+  Dark instead, set `"window.autoDetectColorScheme": true`. The UI uses the Inter font and
+  Material Icon Theme file icons.
+- **Background images** (the vscode-background extension, built in): set
+  `"background.fullscreen": { "images": ["C:/path/to/image.jpg"], "opacity": 0.2 }` (or
+  `background.editor`, `sidebar`, `auxiliarybar`, `panel`), then click **Apply**. The image
+  stays through Briii updates; the installer carries it over.
 
 To get Windows' own window buttons back (with Snap Layouts), set `"window.controlsStyle": "native"`.
 ## What's built in

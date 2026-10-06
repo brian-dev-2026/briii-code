@@ -37,6 +37,10 @@ alefragnani.project-manager
 # Detailed file and folder icons (the default icon theme)
 PKief.material-icon-theme
 
+# Background images (vscode-background, MIT): background.fullscreen / editor / sidebar /
+# auxiliarybar / panel. It patches workbench.html; setup.iss carries the patch into updates.
+shalldie.background
+
 
 # Python. basedpyright replaces Pylance (Microsoft-only); see python.languageServer in settings.
 ms-python.python

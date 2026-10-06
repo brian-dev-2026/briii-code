@@ -32,6 +32,22 @@ function Invoke-Swap([string]$app, [int]$killAfter = 30, [int]$giveUp = 60) {
 }
 $readNew = { param($app) (Get-Content "$app\resources\a.txt" -Raw) -eq 'new' -and (Get-Content "$app\app.dll" -Raw) -eq 'new' }
 
+# The background extension's block in workbench.html (non-ASCII, as in a real image path).
+$html = 'resources\app\out\vs\code\electron-browser\workbench\workbench.html'
+$utf8 = New-Object Text.UTF8Encoding $false
+$block = "<!-- vscode-background-start background.ver.3.1.0 -->`n<script>/* C:/Users/Jos$([char]0xE9)/$([char]0x58C1)$([char]0x7EB8).png */</script>`n<!-- vscode-background-end -->"
+function Write-Html([string]$path, [string]$text) {
+	New-Item -ItemType Directory -Force (Split-Path $path) | Out-Null
+	[IO.File]::WriteAllText($path, $text, $utf8)
+}
+function Read-Html([string]$path) { [IO.File]::ReadAllText($path, $utf8) }
+function Invoke-Carry([string]$from, [string]$to) {
+	$result = Join-Path $root 'carry.result'
+	Start-Process $exe -Wait -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', "/carryfrom=`"$from`"", "/carryto=`"$to`"", "/result=`"$result`"" | Out-Null
+	return (Get-Content $result -Raw -ErrorAction SilentlyContinue)
+}
+$count = { param($text) ([regex]::Matches($text, 'vscode-background-start')).Count }
+
 try {
 	$app = New-App 'plain'
 	$r = Invoke-Swap $app
@@ -51,6 +67,7 @@ try {
 	$left = Start-Process "$app\resources\leftover.exe" -PassThru -WindowStyle Hidden -ArgumentList '-NoProfile', '-Command', "`$f = [IO.File]::Open('$app\resources\a.txt', 'Open', 'Read', 'None'); Start-Sleep 600"
 	Start-Sleep 2
 	$r = Invoke-Swap $app -killAfter 4 -giveUp 40
+	$left.WaitForExit(10000) | Out-Null # a killed process can still hold its files for a moment
 	Check 'a program left running from the app folder is closed, then the swap succeeds' { $r -eq 'ok' -and (& $readNew $app) -and $left.HasExited }
 	if (-not $left.HasExited) { $left.Kill() }
 
@@ -62,6 +79,29 @@ try {
 	$stuck.Kill()
 	$stuck.WaitForExit()
 	Check 'a file that stays in use makes it give up, with the old version intact' { $r -eq 'failed' -and (Get-Content "$app\resources\a.txt" -Raw) -eq 'old' -and (Get-Content "$app\app.dll" -Raw) -eq 'old' }
+
+	# The background extension patches the installed workbench.html; an update must keep it.
+	$app = New-App 'background'
+	Write-Html "$app\$html" "<html>old`n$block`n</html>"
+	Write-Html "$app\_\$html" "<html>new`n</html>"
+	$r = Invoke-Swap $app
+	$t = Read-Html "$app\$html"
+	Check 'a background applied to the old version is carried into the update' { $r -eq 'ok' -and $t -eq "<html>new`n$block`n</html>" }
+
+	$app = New-App 'nobackground'
+	Write-Html "$app\$html" "<html>old`n</html>"
+	Write-Html "$app\_\$html" "<html>new`n</html>"
+	$r = Invoke-Swap $app
+	Check "without a background, the update's workbench.html is left as built" { $r -eq 'ok' -and (Read-Html "$app\$html") -eq "<html>new`n</html>" }
+
+	# A manual install: setup keeps a copy of the old workbench.html, then carries from it.
+	$from = Join-Path $root 'before.html'; $to = Join-Path $root 'after.html'
+	Write-Html $from "<html>old`n$block`n</html>"
+	Write-Html $to "<html>new`n</html>"
+	$r1 = Invoke-Carry $from $to
+	$r2 = Invoke-Carry $from $to
+	$t = Read-Html $to
+	Check 'carrying the background keeps it byte for byte, and twice adds it only once' { $r1 -eq 'ok' -and $r2 -eq 'ok' -and $t -eq "<html>new`n$block`n</html>" -and (& $count $t) -eq 1 }
 } finally {
 	Get-Process leftover -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 	Start-Sleep 1

@@ -64,6 +64,8 @@ async function run() {
 		const c = vscode.workspace.getConfiguration();
 		const want = {
 			'workbench.colorTheme': 'Briii Dark',
+			// On, it makes VS Code ignore the theme people pick and follow Windows' light/dark mode.
+			'window.autoDetectColorScheme': false,
 			'workbench.iconTheme': 'material-icon-theme',
 			'editor.defaultFormatter': 'esbenp.prettier-vscode',
 			'editor.formatOnSave': true,

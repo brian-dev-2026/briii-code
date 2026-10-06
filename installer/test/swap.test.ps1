@@ -47,6 +47,9 @@ function Invoke-Carry([string]$from, [string]$to) {
 	return (Get-Content $result -Raw -ErrorAction SilentlyContinue)
 }
 $count = { param($text) ([regex]::Matches($text, 'vscode-background-start')).Count }
+# The extension also lets its inline script run: it adds 'unsafe-inline' after script-src.
+$cspOff = "<meta content=`"script-src`n`t'self';`">"
+$cspOn = "<meta content=`"script-src 'unsafe-inline'`n`t'self';`">"
 
 try {
 	$app = New-App 'plain'
@@ -82,26 +85,26 @@ try {
 
 	# The background extension patches the installed workbench.html; an update must keep it.
 	$app = New-App 'background'
-	Write-Html "$app\$html" "<html>old`n$block`n</html>"
-	Write-Html "$app\_\$html" "<html>new`n</html>"
+	Write-Html "$app\$html" "<html>$cspOn old`n$block`n</html>"
+	Write-Html "$app\_\$html" "<html>$cspOff new`n</html>"
 	$r = Invoke-Swap $app
 	$t = Read-Html "$app\$html"
-	Check 'a background applied to the old version is carried into the update' { $r -eq 'ok' -and $t -eq "<html>new`n$block`n</html>" }
+	Check 'a background applied to the old version is carried into the update' { $r -eq 'ok' -and $t -eq "<html>$cspOn new`n$block`n</html>" }
 
 	$app = New-App 'nobackground'
-	Write-Html "$app\$html" "<html>old`n</html>"
-	Write-Html "$app\_\$html" "<html>new`n</html>"
+	Write-Html "$app\$html" "<html>$cspOff old`n</html>"
+	Write-Html "$app\_\$html" "<html>$cspOff new`n</html>"
 	$r = Invoke-Swap $app
-	Check "without a background, the update's workbench.html is left as built" { $r -eq 'ok' -and (Read-Html "$app\$html") -eq "<html>new`n</html>" }
+	Check "without a background, the update's workbench.html is left as built" { $r -eq 'ok' -and (Read-Html "$app\$html") -eq "<html>$cspOff new`n</html>" }
 
 	# A manual install: setup keeps a copy of the old workbench.html, then carries from it.
 	$from = Join-Path $root 'before.html'; $to = Join-Path $root 'after.html'
-	Write-Html $from "<html>old`n$block`n</html>"
-	Write-Html $to "<html>new`n</html>"
+	Write-Html $from "<html>$cspOn old`n$block`n</html>"
+	Write-Html $to "<html>$cspOff new`n</html>"
 	$r1 = Invoke-Carry $from $to
 	$r2 = Invoke-Carry $from $to
 	$t = Read-Html $to
-	Check 'carrying the background keeps it byte for byte, and twice adds it only once' { $r1 -eq 'ok' -and $r2 -eq 'ok' -and $t -eq "<html>new`n$block`n</html>" -and (& $count $t) -eq 1 }
+	Check 'carrying the background keeps it byte for byte, and twice adds it only once' { $r1 -eq 'ok' -and $r2 -eq 'ok' -and $t -eq "<html>$cspOn new`n$block`n</html>" -and (& $count $t) -eq 1 }
 } finally {
 	Get-Process leftover -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 	Start-Sleep 1

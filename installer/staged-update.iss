@@ -80,8 +80,9 @@ const
 
 // The background extension (shalldie.background) applies its images by adding a block to the
 // installed workbench.html, between <!-- vscode-background-start ... --> and
-// <!-- vscode-background-end -->. A new version's files don't have it, so it is copied over
-// (any copy already there is replaced). PowerShell does the text work: it reads and writes the
+// <!-- vscode-background-end -->, and by adding 'unsafe-inline' to script-src so that block's
+// script may run. A new version's files have neither, so both are carried over (any copy of
+// the block already there is replaced). PowerShell does the text work: it reads and writes the
 // file as UTF-8, which Inno's Ansi file functions can't promise for image paths.
 procedure CarryBackground(FromHtml, ToHtml: String);
 var
@@ -104,7 +105,11 @@ begin
     'if (-not $m.Success) { exit 1 }; ' +
     '$t = [regex]::Replace([IO.File]::ReadAllText(''' + T + ''', $u), ''(?s)'' + $r + ''\r?\n?'', ''''); ' +
     '$i = $t.LastIndexOf(''</html>''); if ($i -lt 0) { $i = $t.Length }; ' +
-    '[IO.File]::WriteAllText(''' + T + ''', $t.Insert($i, $m.Value + [char]10), $u)"',
+    '$t = $t.Insert($i, $m.Value + [char]10); ' +
+    // Its <script> only runs with 'unsafe-inline' after script-src, which it adds the same way.
+    'if ($t -notmatch ''script-src ''''unsafe-inline'''''') { ' +
+    '$t = (New-Object regex ''(script-src)(\s)'').Replace($t, ''$1 ''''unsafe-inline''''$2'', 1) }; ' +
+    '[IO.File]::WriteAllText(''' + T + ''', $t, $u)"',
     '', SW_HIDE, ewWaitUntilTerminated, Code);
   Log('Carried the background from ' + FromHtml + ' to ' + ToHtml + ' (exit ' + IntToStr(Code) + ')');
 end;

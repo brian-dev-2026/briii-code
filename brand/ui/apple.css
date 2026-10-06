@@ -126,6 +126,10 @@
    whole sentence) otherwise stretches the menu across the window. Long items end in "…". */
 .context-view.monaco-menu-container {
 	max-width: min(480px, calc(100vw - 32px));
+	/* Submenus (Manage › Themes, File › Open Recent) are drawn inside this container but beside
+	   the menu; overflow: hidden (the frosted-popup rule above, and VS Code's own later rule)
+	   clipped them away entirely. */
+	overflow: visible !important;
 }
 .context-view.monaco-menu-container .monaco-menu .action-menu-item {
 	min-width: 0;

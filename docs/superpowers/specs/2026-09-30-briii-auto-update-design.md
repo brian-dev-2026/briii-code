@@ -37,7 +37,8 @@ New workflow `.github/workflows/release.yml`, on `windows-latest`.
 - **Publish:** `gh release create v<id>` (gh is preinstalled on the runner; it uses the built-in
   `GITHUB_TOKEN` with `contents: write`). The assets are `BriiiCode-Setup-x64-<id>.exe` and
   `BriiiCode-Setup-x64-<id>.exe.sha256` (hex digest), and the release is marked latest.
-- **Prune:** keep the newest 10 releases and delete older ones with their tags.
+- **Prune:** keep only the newest release and delete older ones with their tags (it was the
+  newest 10 until 2026-10-06; one installer on the Releases page is less confusing).
 
 `build.ps1` changes:
 - **New `-Release <id>` parameter.** The default, for local builds, is `<vscodium>-local`. The id

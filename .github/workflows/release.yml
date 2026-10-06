@@ -74,8 +74,10 @@ jobs:
           gh release create "v$id" $exe "$exe.sha256" --title "Briii Code $id" --notes "Built from VSCodium ${{ steps.plan.outputs.vscodium }}. Installs itself automatically in Briii Code; or download and run the installer." --target $env:GITHUB_SHA --latest
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
-      - name: Keep the newest 10 releases
+      # Only the newest release is kept, so the Releases page offers one installer. Updates only
+      # ever use the latest release, and this runs after the new one is published.
+      - name: Keep only the newest release
         if: steps.plan.outputs.build == 'true'
         run: |
-          $old = gh release list --limit 100 --json tagName,publishedAt --jq 'sort_by(.publishedAt) | reverse | .[10:][] | .tagName'
+          $old = gh release list --limit 100 --json tagName,publishedAt --jq 'sort_by(.publishedAt) | reverse | .[1:][] | .tagName'
           foreach ($tag in $old) { if ($tag) { gh release delete $tag --yes --cleanup-tag } }

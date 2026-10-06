@@ -133,7 +133,7 @@ try {
 		$bundled = Get-Content (Join-Path $Root 'defaults\extensions.txt') |
 			ForEach-Object { ($_ -replace '#.*$', '').Trim() } | Where-Object { $_ } |
 			ForEach-Object { ($_ -split '@')[0].ToLower() }
-		foreach ($ext in @('briii-defaults', 'briii-theme', 'briii-deploy', 'briii-update', 'briii-sync') + $bundled) {
+		foreach ($ext in @('briii-defaults', 'briii-theme', 'briii-deploy', 'briii-update', 'briii-sync', 'briii-layout') + $bundled) {
 			Assert (Test-Path (Join-Path $App "resources\app\extensions\$ext\package.json")) "missing $ext"
 		}
 	}

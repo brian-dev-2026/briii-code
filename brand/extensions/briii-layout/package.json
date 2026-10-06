@@ -1,0 +1,43 @@
+{
+	"name": "briii-layout",
+	"displayName": "Briii Layout",
+	"description": "Open and close Claude from the Explorer and its own panel, and hide the empty code area when the last file closes.",
+	"publisher": "briii",
+	"version": "1.0.0",
+	"license": "MIT",
+	"engines": { "vscode": "^1.80.0" },
+	"categories": ["Other"],
+	"main": "./extension.js",
+	"activationEvents": ["onStartupFinished"],
+	"contributes": {
+		"configuration": {
+			"title": "Briii Layout",
+			"properties": {
+				"briii.layout.hideEmptyCodeArea": {
+					"type": "boolean",
+					"default": true,
+					"description": "Hide the code area when the last file closes, so the Explorer, Claude and the terminal get the room. Opening a file brings it back; Ctrl+Alt+W toggles it."
+				}
+			}
+		},
+		"commands": [
+			{ "command": "briii.claude.close", "title": "Close Claude", "category": "Briii", "icon": "$(close)" },
+			{ "command": "briii.claude.hide", "title": "Hide Claude", "category": "Briii", "icon": "$(layout-sidebar-right)" },
+			{ "command": "briii.layout.toggleCodeArea", "title": "Hide or Show the Code Area", "category": "Briii" }
+		],
+		"menus": {
+			"view/title": [
+				{ "command": "claude-vscode.sidebar.open", "when": "view == workbench.explorer.fileView && !auxiliaryBarVisible", "group": "navigation@0" },
+				{ "command": "briii.claude.hide", "when": "view == workbench.explorer.fileView && auxiliaryBarVisible", "group": "navigation@0" },
+				{ "command": "briii.claude.close", "when": "view == claudeVSCodeSidebarSecondary", "group": "navigation@99" }
+			],
+			"commandPalette": [
+				{ "command": "briii.claude.close", "when": "auxiliaryBarVisible" },
+				{ "command": "briii.claude.hide", "when": "false" }
+			]
+		},
+		"keybindings": [
+			{ "key": "ctrl+alt+w", "command": "briii.layout.toggleCodeArea" }
+		]
+	}
+}

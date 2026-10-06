@@ -83,7 +83,7 @@ async function run() {
 	});
 
 	await check('every bundled extension activates', async () => {
-		const ids = ['briii.briii-defaults', 'briii.briii-theme', 'briii.briii-deploy', 'briii.briii-update', 'briii.briii-sync', 'vscode.git', 'vscode.typescript-language-features', 'ms-vscode.js-debug', ...expected];
+		const ids = ['briii.briii-defaults', 'briii.briii-theme', 'briii.briii-deploy', 'briii.briii-update', 'briii.briii-sync', 'briii.briii-layout', 'vscode.git', 'vscode.typescript-language-features', 'ms-vscode.js-debug', ...expected];
 		const bad = [];
 		for (const id of ids) {
 			const ext = vscode.extensions.getExtension(id);
@@ -456,38 +456,46 @@ async function run() {
 		assert(at === 'top', `workbench.activityBar.location=${JSON.stringify(at)} (want "top")`);
 	});
 
-	await check('studio: the Explorer header has a Claude button', () => {
-		const menus = vscode.extensions.getExtension('briii.briii-defaults').packageJSON.contributes.menus || {};
-		const item = (menus['view/title'] || []).find(m => m.command === 'claude-vscode.sidebar.open');
-		assert(item && /workbench\.explorer\.fileView/.test(item.when), `view/title: ${JSON.stringify(menus['view/title'])}`);
+	// Briii Layout: buttons to open and close Claude, Ctrl+Alt+W, and hiding the empty code area.
+	const layout = () => vscode.extensions.getExtension('briii.briii-layout').packageJSON.contributes;
+	await check('studio: Claude opens from the Explorer and closes from its own panel', async () => {
+		const items = layout().menus['view/title'];
+		const has = (command, view) => items.some(m => m.command === command && m.when.includes(view));
+		assert(has('claude-vscode.sidebar.open', 'workbench.explorer.fileView'), 'no Claude button on the Explorer');
+		assert(has('briii.claude.hide', 'workbench.explorer.fileView'), 'no Hide Claude button on the Explorer');
+		assert(has('briii.claude.close', 'claudeVSCodeSidebarSecondary'), 'no close button on the Claude panel');
 		const claude = vscode.extensions.getExtension('anthropic.claude-code');
-		if (claude) assert(claude.packageJSON.contributes.commands.some(c => c.command === 'claude-vscode.sidebar.open'), 'Claude Code no longer has claude-vscode.sidebar.open');
+		if (claude) {
+			const pkg = claude.packageJSON.contributes;
+			assert(pkg.commands.some(c => c.command === 'claude-vscode.sidebar.open'), 'Claude Code no longer has claude-vscode.sidebar.open');
+			assert(Object.values(pkg.views).flat().some(v => v.id === 'claudeVSCodeSidebarSecondary'), 'Claude Code renamed its panel view');
+		}
+		await vscode.commands.executeCommand('workbench.action.toggleAuxiliaryBar');
+		await vscode.commands.executeCommand('briii.claude.close');
 	});
 
 	await check('studio: Ctrl+Alt+W hides and shows the code area', async () => {
 		const key = 'ctrl+alt+w';
-		const keys = vscode.extensions.getExtension('briii.briii-defaults').packageJSON.contributes.keybindings || [];
-		const bound = keys.find(k => k.key === key);
-		assert(bound && bound.command === 'workbench.action.toggleEditorVisibility', `${key} is ${JSON.stringify(bound)}`);
+		const bound = (layout().keybindings || []).find(k => k.key === key);
+		assert(bound && bound.command === 'briii.layout.toggleCodeArea', `${key} is ${JSON.stringify(bound)}`);
 		// Another extension on the same key would win (REST Client took ctrl+alt+e).
-		const clash = vscode.extensions.all.filter(e => e.id !== 'briii.briii-defaults')
+		const clash = vscode.extensions.all.filter(e => e.id !== 'briii.briii-layout')
 			.flatMap(e => [].concat(e.packageJSON.contributes?.keybindings || []).map(k => ({ id: e.id, k })))
 			.filter(({ k }) => [k.key, k.win].some(x => (x || '').toLowerCase() === key));
 		assert(!clash.length, `also bound by ${clash.map(c => `${c.id} (${c.k.command})`).join(', ')}`);
-		await vscode.commands.executeCommand('workbench.action.toggleEditorVisibility');
-		await vscode.commands.executeCommand('workbench.action.toggleEditorVisibility');
+		await vscode.commands.executeCommand('briii.layout.toggleCodeArea');
+		await vscode.commands.executeCommand('briii.layout.toggleCodeArea');
+	});
+
+	await check('studio: the empty code area hides by default', () => {
+		const on = vscode.workspace.getConfiguration('briii.layout').get('hideEmptyCodeArea');
+		assert(on === true, `briii.layout.hideEmptyCodeArea=${JSON.stringify(on)}`);
 	});
 
 	await check('studio: Claude Code opens in the right-hand card', () => {
 		const at = vscode.workspace.getConfiguration('claudeCode').get('preferredLocation');
 		assert(at === 'sidebar', `claudeCode.preferredLocation=${JSON.stringify(at)} (want "sidebar")`);
 	});
-
-	await check('studio: the right-hand card shows and hides', async () => {
-		await vscode.commands.executeCommand('workbench.action.toggleAuxiliaryBar');
-		await vscode.commands.executeCommand('workbench.action.toggleAuxiliaryBar');
-	});
-
 	await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	if (process.env.BRIII_SMOKE_OUT) fs.writeFileSync(process.env.BRIII_SMOKE_OUT, JSON.stringify(results, null, 2));
 	const failed = results.filter(r => !r.ok).length;

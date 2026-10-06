@@ -41,8 +41,10 @@ Briii Code doesn't look like stock VS Code:
   sidebar.**
 - **Claude Code** opens in its own panel on the right. Use the **✳ Claude Code** item in the
   status bar, **Ctrl+Alt+B**, or the Claude button on the Explorer's header (hover the
-  Explorer).
-- **Ctrl+Alt+W** hides or shows the code area, so the Explorer and Claude can share the window.
+  Explorer). The **×** in Claude's panel, or the same Explorer button, closes it.
+- **The code area hides when you close your last file,** so the Explorer, Claude and the terminal
+  get the room. Opening a file brings it back. **Ctrl+Alt+W** hides or shows it by hand, and
+  `briii.layout.hideEmptyCodeArea: false` turns the automatic hiding off.
 - **Briii Light and Briii Dark** follow Windows' light/dark setting. The UI uses the Inter font
   and Material Icon Theme file icons.
 
@@ -122,5 +124,5 @@ Each release passes the unit tests and `verify.ps1` first.
 | `defaults/settings.json` | Default settings (plain JSON). Anything you set in the app still wins. |
 | `defaults/extensions.txt` | Open VSX extensions bundled into the installer. |
 | `defaults/first-launch-extensions.txt` | Extensions installed on first launch instead, because their licences don't allow bundling (Claude Code, GitLens, Windsurf). |
-| `brand/extensions/` | Briii's own built-in extensions: `briii-theme` (colours), `briii-deploy` (Vercel), `briii-update` (updates and first launch) and `briii-sync` (Briii Sync). |
+| `brand/extensions/` | Briii's own built-in extensions: `briii-theme` (colours), `briii-deploy` (Vercel), `briii-update` (updates and first launch), `briii-sync` (Briii Sync) and `briii-layout` (Claude buttons, hiding the empty code area). |
 | `brand/ui/apple.css` | The look: macOS window buttons, the sidebar tool row, type, menus and popups. It targets VS Code internals, and the build warns when a class it uses disappears. |

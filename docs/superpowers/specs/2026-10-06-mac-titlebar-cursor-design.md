@@ -36,6 +36,18 @@ pill people found hard to use.
 | Cursor colours | `brand/extensions/briii-theme/themes/briii-dark.json` |
 | Claude button | `defaults/menus.json` → `briii-defaults › contributes.menus`, `view/title` on `workbench.explorer.fileView` with Claude Code's own `claude-vscode.sidebar.open` (and its logo). It's hidden until Claude Code is installed. |
 
+## Follow-up: opening and closing (2026-10-06)
+
+With the title-bar buttons gone, Claude's panel had nothing to click to close it, and the empty code area (the big B) stayed. A built-in extension, `brand/extensions/briii-layout`, adds the following:
+
+- **Claude buttons:** `view/title` items.
+  - The Explorer shows Claude Code's own *Open in Side Bar* while the panel is closed, and **Hide Claude** while it's open (`auxiliaryBarVisible`).
+  - Claude's panel (`claudeVSCodeSidebarSecondary`) gets a **×** that closes it.
+- **Hiding the empty code area:** `briii.layout.hideEmptyCodeArea` (default on) hides the code area when the last tab closes, and opening a file brings it back (VS Code does that by itself).
+  - Extensions can't read whether the area is visible, and VS Code only has a toggle (it maximizes the panel), so `lib/codeArea.js` tracks it, with unit tests.
+  - **Ctrl+Alt+W** moved here, to `briii.layout.toggleCodeArea`, so the tracking stays right.
+  - At startup with no files open, nothing happens: the restored state is unknown.
+
 ## Limits found while building
 
 - **Snap Layouts:** Windows 11's flyout on the maximize button needs native buttons, so it goes

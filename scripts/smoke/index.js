@@ -66,6 +66,8 @@ async function run() {
 			'workbench.colorTheme': 'Briii Dark',
 			// On, it makes VS Code ignore the theme people pick and follow Windows' light/dark mode.
 			'window.autoDetectColorScheme': false,
+			// On (its own default), vscode-background asks "ready! Apply" at every launch until applied.
+			'background.enabled': false,
 			'workbench.iconTheme': 'material-icon-theme',
 			'editor.defaultFormatter': 'esbenp.prettier-vscode',
 			'editor.formatOnSave': true,
@@ -494,9 +496,13 @@ async function run() {
 		assert(on === true, `briii.layout.hideEmptyCodeArea=${JSON.stringify(on)}`);
 	});
 
-	await check('studio: Claude Code opens in the right-hand card', () => {
-		const at = vscode.workspace.getConfiguration('claudeCode').get('preferredLocation');
-		assert(at === 'sidebar', `claudeCode.preferredLocation=${JSON.stringify(at)} (want "sidebar")`);
+	// Where Claude opens is Claude Code's own choice (a tab by default; it remembers the last place
+	// it was opened). Briii used to force the right-hand panel, which stopped it becoming a tab.
+	await check("studio: Briii leaves Claude Code's location alone", () => {
+		const defaults = vscode.extensions.getExtension('briii.briii-defaults')?.packageJSON.contributes?.configurationDefaults ?? {};
+		assert(!('claudeCode.preferredLocation' in defaults), `briii-defaults sets claudeCode.preferredLocation=${JSON.stringify(defaults['claudeCode.preferredLocation'])}`);
+		const update = vscode.extensions.getExtension('briii.briii-update');
+		assert(!fs.existsSync(path.join(update.extensionPath, 'lib', 'studioLayout.js')), 'briii-update still moves Claude Code (lib/studioLayout.js)');
 	});
 	await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	if (process.env.BRIII_SMOKE_OUT) fs.writeFileSync(process.env.BRIII_SMOKE_OUT, JSON.stringify(results, null, 2));

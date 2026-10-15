@@ -129,6 +129,11 @@ const jsPatches = [{
 	find: /\?\.controlsStyle;return ([\w$]+)==="custom"\|\|\1==="hidden"\?\1:"native"/,
 	replace: '?.controlsStyle;return $1==="native"||$1==="hidden"?$1:"custom"',
 }, {
+	// VS Code 1.140 turned its modern UI (floating cards) on by default; Briii's look is flat.
+	what: 'keep the workbench flat (modern UI cards off)',
+	find: /("workbench\.experimental\.modernUI":\{type:"boolean",default:)![01]/,
+	replace: '$1!1',
+}, {
 	what: 'hide the (chat) secondary side bar by default',
 	find: /("workbench\.secondarySideBar\.defaultVisibility":\{type:"string",enum:\[[^\]]*\],default:)"visibleInWorkspace"/,
 	replace: '$1"hidden"',

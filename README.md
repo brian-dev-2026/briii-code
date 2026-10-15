@@ -39,9 +39,10 @@ Briii Code doesn't look like stock VS Code:
 - **Cursor-style workbench:** a near-black, monochrome Briii Dark theme with flat panels
   separated by thin lines. The **☰ menu and the tool icons sit in one row at the top of the
   sidebar.**
-- **Claude Code** opens in its own panel on the right. Use the **✳ Claude Code** item in the
-  status bar, **Ctrl+Alt+B**, or the Claude button on the Explorer's header (hover the
-  Explorer). The **×** in Claude's panel, or the same Explorer button, closes it.
+- **Claude Code** opens where you last opened it: as an editor tab (Claude Code's own default; drag
+  it, split it, or use *Claude Code: Open in New Window*) or in the panel on the right (the
+  Claude button on the Explorer's header, which shows when you hover the Explorer). The **×** in
+  the right-hand panel, or the same Explorer button, closes it.
 - **The code area hides when you close your last file,** so the Explorer, Claude and the terminal
   get the room. Opening a file brings it back. **Ctrl+Alt+W** hides or shows it by hand, and
   `briii.layout.hideEmptyCodeArea: false` turns the automatic hiding off.
@@ -49,16 +50,16 @@ Briii Code doesn't look like stock VS Code:
   Color Theme) stays picked. To follow Windows' light/dark setting with Briii Light and Briii
   Dark instead, set `"window.autoDetectColorScheme": true`. The UI uses the Inter font and
   Material Icon Theme file icons.
-- **Background images** (the vscode-background extension, built in): set
+- **Background images** (the vscode-background extension, built in, off until you use it): set
   `"background.fullscreen": { "images": ["C:/path/to/image.jpg"], "opacity": 0.2 }` (or
-  `background.editor`, `sidebar`, `auxiliarybar`, `panel`), then click **Apply**. The image
-  stays through Briii updates; the installer carries it over.
+  `background.editor`, `sidebar`, `auxiliarybar`, `panel`), then run *Background: Enable and
+  apply the background*. The image stays through Briii updates; the installer carries it over.
 
 To get Windows' own window buttons back (with Snap Layouts), set `"window.controlsStyle": "native"`.
 ## What's built in
 
-- **Claude Code**, Anthropic's coding agent, installed on first launch. It opens in the
-  right-hand card.
+- **Claude Code**, Anthropic's coding agent, installed on first launch. It opens as a tab or
+  in the right-hand panel, wherever you last opened it.
 - **Windsurf (formerly Codeium)**, free Copilot-style suggestions as you type, installed on
   first launch. Click **Windsurf: Login** in the status bar and sign in with a free Windsurf
   account; then press **Tab** to accept a grey suggestion. Code you're editing is sent to

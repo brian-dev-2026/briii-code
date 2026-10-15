@@ -28,7 +28,7 @@ pill people found hard to use.
 
 | Part | Where |
 |---|---|
-| Window buttons drawn by VS Code (`window.controlsStyle: custom`) | `rebrand.mjs`: the setting's registered default, plus the decision function in both `workbench.desktop.main.js` and `out/main.js` (main process; it reads only user settings). It's an application setting, so extension defaults are ignored. "native" in settings still wins. |
+| Window buttons drawn by VS Code (`window.controlsStyle: custom`) | `rebrand.mjs`: the setting's registered default, plus the decision function in both `workbench.desktop.main.js` and the main process's file (`out/main.js` in VS Code 1.135, `out/mainImpl.js` from 1.140; it reads only user settings, and the build fails if the patch finds neither). It's an application setting, so extension defaults are ignored. "native" in settings still wins. |
 | Traffic-light look, left placement | `apple.css` (`.window-controls-container`, `.window-icon.window-*`) |
 | Tool row at the top, ☰ beside it | `activityBar.location: top` in `defaults/settings.json` and `jsPatches`; `window.menuBarVisibility: compact` in `jsPatches` only (application setting) |
 | Clean title bar | `workbench.layoutControl.enabled: false` (settings + `jsPatches`) |

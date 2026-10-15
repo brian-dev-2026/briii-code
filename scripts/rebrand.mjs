@@ -159,16 +159,22 @@ updateChecksum(jsRel);
 
 // The main process decides the window buttons before any settings defaults load, with the same
 // code: default it to VS Code's own (custom) buttons too. "native" in settings still wins.
+// The code lives in out/main.js up to VS Code 1.135 and in out/mainImpl.js from 1.140, so every
+// top-level out/*.js is searched (none is in product.json checksums). Missing it draws Windows'
+// buttons next to the traffic lights, so the build fails instead of warning.
 {
-	const mainPath = path.join(outDir, 'main.js');
-	const main = fs.readFileSync(mainPath, 'utf8');
 	const find = /\?\.controlsStyle;return ([\w$]+)==="custom"\|\|\1==="hidden"\?\1:"native"/;
-	if (find.test(main)) {
-		fs.writeFileSync(mainPath, main.replace(find, '?.controlsStyle;return $1==="native"||$1==="hidden"?$1:"custom"')); // not in product.json checksums
-		console.log("Patched: draw VS Code's own window buttons (main process)");
-	} else {
-		console.warn('WARNING: could not default the window buttons in the main process - pattern not found');
+	const patched = fs.readdirSync(outDir).filter(f => f.endsWith('.js')).filter(f => {
+		const file = path.join(outDir, f);
+		const text = fs.readFileSync(file, 'utf8');
+		if (!find.test(text)) return false;
+		fs.writeFileSync(file, text.replace(find, '?.controlsStyle;return $1==="native"||$1==="hidden"?$1:"custom"'));
+		return true;
+	});
+	if (!patched.length) {
+		throw new Error('could not default the window buttons in the main process: the controlsStyle decision was not found in any out/*.js');
 	}
+	console.log(`Patched: draw VS Code's own window buttons (main process, ${patched.join(', ')})`);
 }
 
 // The startup splash redraws the layout saved by the previous session. Briii used VS Code's modern

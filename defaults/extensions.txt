@@ -45,7 +45,8 @@ shalldie.background
 # Python. basedpyright replaces Pylance (Microsoft-only); see python.languageServer in settings.
 ms-python.python
 ms-python.debugpy
-ms-python.vscode-python-envs
+# Not ms-python.vscode-python-envs: Open VSX has only its universal build, without pet.exe, so it
+# finds no environments and logs errors at every start. The Python extension's own finder works.
 detachhead.basedpyright
 # Python formatter and linter (Prettier and ESLint for Python)
 charliermarsh.ruff

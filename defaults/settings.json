@@ -43,7 +43,6 @@
 	"git.confirmSync": false,
 	"redhat.telemetry.enabled": false,
 	"workbench.browser.openLocalhostLinks": true,
-	"workbench.welcomePage.extraAnnouncements": false,
 	"gitlens.advanced.skipOnboarding": true,
 	"gitlens.showWhatsNewAfterUpgrades": false,
 	"python.languageServer": "None",

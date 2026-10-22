@@ -13,8 +13,10 @@ const firstLaunch = require('./lib/firstLaunch');
 const { helperCommandLine, startDetached } = require('./lib/helperLaunch');
 const { shouldInstallOnExit } = require('./lib/exitInstall');
 const { readyMessage } = require('./lib/messages');
+const { sessionDirOf, keepSessionLogs } = require('./lib/diagnostics');
 
 const FIRST_CHECK_MS = 30 * 1000;
+const KEEP_LOGS_MS = 2 * 60 * 1000; // by then GitHub sign-in has read its stored sessions
 const CHECK_EVERY_MS = 6 * 60 * 60 * 1000;
 const MAX_FAILURES = 3;
 const DONE_KEY = 'briii.firstLaunch.done';
@@ -94,6 +96,24 @@ function activate(ctx) {
 	if (product.briiiRelease) {
 		timers.push(setTimeout(() => runCheck(false), FIRST_CHECK_MS));
 		timers.push(setInterval(() => runCheck(false), CHECK_EVERY_MS));
+		timers.push(setTimeout(keepFirstSessionLogs, KEEP_LOGS_MS));
+	}
+}
+
+/** Once per release (in one window): see lib/diagnostics.js. */
+function keepFirstSessionLogs() {
+	if (!claimOnce(updateDir(), `logs:${product.briiiRelease}`)) {
+		return;
+	}
+	try {
+		const dir = keepSessionLogs({
+			sessionDir: sessionDirOf(context.logUri.fsPath),
+			dest: path.join(updateDir(), 'diagnostics'),
+			name: product.briiiRelease,
+		});
+		log(`Kept this and the previous session's logs in ${dir}.`);
+	} catch (e) {
+		log(`Couldn't keep the session logs: ${e.message}`);
 	}
 }
 

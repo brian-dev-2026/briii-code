@@ -185,7 +185,8 @@ try {
 			$sites = ([regex]::Matches($js, [regex]::Escape('"[secrets] deleting invalid secret for key:"'))).Count
 			if (-not $sites) { continue }
 			$kept = ([regex]::Matches($js, 'this\.useSharedStorage\([\w$]+\)\?this\._logService\.trace\("\[secrets\] kept a shared secret')).Count
-			$rel = $f.FullName.Substring($out.Length + 1)
+			# Not Substring($out.Length): CI's TEMP is a short path (RUNNER~1), FullName is the long one.
+			$rel = $f.FullName -replace '^.*?\\resources\\app\\out\\', ''
 			if ($kept -ne $sites) { $bad += "$rel ($kept of $sites)" } else { $patched += $rel }
 		}
 		Assert (-not $bad) "secret-storage patch missing in: $($bad -join ', ')"

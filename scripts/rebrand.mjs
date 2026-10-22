@@ -186,20 +186,29 @@ updateChecksum(jsRel);
 // (~/.briii-shared), but each --user-data-dir has its own encryption key (its Local State). A
 // secret that doesn't decrypt is deleted, so any other profile (verify.ps1, a test window) that
 // asked for GitHub sign-in deleted the real token: "signed out after every new version". Keep
-// shared secrets that don't decrypt; signing in again overwrites them. Missing it in the
-// workbench brings the sign-outs back silently, so the build fails instead of warning.
+// shared secrets that don't decrypt; signing in again overwrites them. The code is in several
+// bundles (workbench, Agents window, extension hosts) and may move, so every out/**/*.js is
+// searched, and the build fails if any copy is left unpatched: it would delete the token again.
 {
-	const find = /("\[secrets\] deleting invalid secret for key:",[\w$]+\),)this\.removeValueFromStorage\(([\w$]+),/;
-	const patched = ['vs/workbench/workbench.desktop.main.js', 'vs/sessions/sessions.desktop.main.js',
-		'vs/workbench/api/node/extensionHostProcess.js', 'vs/workbench/api/worker/extensionHostWorkerMain.js'].filter(rel => {
-		const file = path.join(outDir, ...rel.split('/'));
-		if (!fs.existsSync(file)) return false;
-		const text = fs.readFileSync(file, 'utf8');
-		if (!text.includes('useSharedStorage(') || !find.test(text)) return false;
-		fs.writeFileSync(file, text.replace(find, '$1this.useSharedStorage($2)||this.removeValueFromStorage($2,'));
+	const site = '"[secrets] deleting invalid secret for key:"';
+	// $1 the prefixed key (also in both traces), $2 the raw key, which useSharedStorage takes.
+	const find = /this\._logService\.trace\("\[secrets\] deleting invalid secret for key:",([\w$]+)\),this\.removeValueFromStorage\(([\w$]+),\1,[\w$]+\),this\._logService\.trace\("\[secrets\] deleted invalid secret for key:",\1\)/g;
+	const patched = [];
+	for (const rel of fs.readdirSync(outDir, { recursive: true }).map(f => f.split(path.sep).join('/')).filter(f => f.endsWith('.js'))) {
+		const text = fs.readFileSync(path.join(outDir, ...rel.split('/')), 'utf8');
+		const sites = text.split(site).length - 1;
+		if (!sites) continue;
+		let count = 0;
+		const out = text.replace(find, (m, full, key) => {
+			count++;
+			return `this.useSharedStorage(${key})?this._logService.trace("[secrets] kept a shared secret this profile can't decrypt:",${full}):(${m})`;
+		});
+		must(count === sites && text.includes('useSharedStorage('),
+			`could not keep shared secrets that fail to decrypt in ${rel}: patched ${count} of ${sites} (the secret storage code changed)`);
+		fs.writeFileSync(path.join(outDir, ...rel.split('/')), out);
 		if (product.checksums?.[rel]) updateChecksum(rel);
-		return true;
-	});
+		patched.push(rel);
+	}
 	must(patched.includes('vs/workbench/workbench.desktop.main.js'),
 		'could not keep shared secrets that fail to decrypt: the secret storage code was not found in workbench.desktop.main.js');
 	console.log(`Patched: keep the shared GitHub token when another profile can't decrypt it (${patched.join(', ')})`);

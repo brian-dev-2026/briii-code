@@ -2,7 +2,9 @@
 .SYNOPSIS
   Smoke-tests a built Briii Code installer: silent install into a temp folder, CLI and
   branding checks, extension installs (Open VSX + .vsix), GUI launch, silent uninstall.
-  Uses a throwaway user-data and extensions folder, so your real settings are untouched.
+  Uses throwaway user-data, shared-data and extensions folders, so your real settings and
+  your GitHub sign-in are untouched. Every launch needs --shared-data-dir as well as
+  --user-data-dir: without it, a test profile opens the real ~/.briii-shared store.
 
 .EXAMPLE
   .\scripts\verify.ps1                       # newest installer in out\
@@ -42,8 +44,9 @@ $Work = Join-Path $env:TEMP "briii-verify-$([guid]::NewGuid().ToString('N').Subs
 $App = Join-Path $Work 'app'
 $UserData = Join-Path $Work 'user-data'
 $ExtDir = Join-Path $Work 'extensions'
-# The cross-app shared store (GitHub token) is in the home folder, not the user data folder. A
-# test profile has another encryption key, so it must never open the real one.
+# The cross-app shared store (GitHub token) is in the home folder, not the user data folder, and
+# is encrypted with one profile's key. So each test profile gets its own: never the real one, and
+# never another test profile's (the smoke profile has its own, $SmokeShared).
 $SharedData = Join-Path $Work 'shared-data'
 New-Item -ItemType Directory -Force $Work, $UserData, $ExtDir, $SharedData | Out-Null
 # Keep the app's updater away from the real release feed and the real update folder.
@@ -174,8 +177,20 @@ try {
 	}
 
 	Check 'a profile that can''t decrypt the shared GitHub token keeps it (no sign-out)' {
-		$js = [IO.File]::ReadAllText((Join-Path $App 'resources\app\out\vs\workbench\workbench.desktop.main.js'))
-		Assert ($js -match 'deleting invalid secret for key:",[\w$]+\),this\.useSharedStorage\(') 'rebrand.mjs secret-storage patch missing'
+		# Every copy of the secret storage code, in any bundle, must have rebrand.mjs's patch.
+		$out = Join-Path $App 'resources\app\out'
+		$bad = @(); $patched = @()
+		foreach ($f in Get-ChildItem $out -Recurse -Filter *.js) {
+			$js = [IO.File]::ReadAllText($f.FullName)
+			$sites = ([regex]::Matches($js, [regex]::Escape('"[secrets] deleting invalid secret for key:"'))).Count
+			if (-not $sites) { continue }
+			$kept = ([regex]::Matches($js, 'this\.useSharedStorage\([\w$]+\)\?this\._logService\.trace\("\[secrets\] kept a shared secret')).Count
+			$rel = $f.FullName.Substring($out.Length + 1)
+			if ($kept -ne $sites) { $bad += "$rel ($kept of $sites)" } else { $patched += $rel }
+		}
+		Assert (-not $bad) "secret-storage patch missing in: $($bad -join ', ')"
+		Assert ($patched -contains 'vs\workbench\workbench.desktop.main.js') 'secret-storage code not found in the workbench'
+		"($($patched.Count) bundles)"
 	}
 
 	Check 'apple.css only targets classes this VS Code has' {
@@ -241,11 +256,12 @@ try {
 	# In-app smoke tests (scripts\smoke): terminals, tasks, debugger, git, TypeScript, Prettier,
 	# search, watcher, webviews, Integrated Browser, Claude Code - run inside the installed app.
 	$SmokeData = Join-Path $Work 'smoke-data'
+	$SmokeShared = Join-Path $Work 'smoke-shared-data'
 	$SmokeWs = Join-Path $Work 'smoke-ws'
 	$SmokeOut = Join-Path $Work 'smoke-results.json'
 	$smokeRan = $false
 	Check 'in-app smoke tests ran' {
-		New-Item -ItemType Directory -Force (Join-Path $SmokeData 'User'), $SmokeWs | Out-Null
+		New-Item -ItemType Directory -Force (Join-Path $SmokeData 'User'), $SmokeShared, $SmokeWs | Out-Null
 		$utf8 = New-Object Text.UTF8Encoding $false
 		# No theme or formatter here: the smoke tests check the shipped defaults.
 		$json = @{
@@ -272,7 +288,7 @@ try {
 			ForEach-Object { (($_ -replace '#.*$', '').Trim() -split '@')[0] } | Where-Object { $_ }) -join ','
 		$smoke = Join-Path $PSScriptRoot 'smoke'
 		$p = Start-Process $exe -PassThru -ArgumentList @(
-			"--user-data-dir=`"$SmokeData`"", "--shared-data-dir=`"$SharedData`"", "--extensions-dir=`"$ExtDir`"",
+			"--user-data-dir=`"$SmokeData`"", "--shared-data-dir=`"$SmokeShared`"", "--extensions-dir=`"$ExtDir`"",
 			"--extensionDevelopmentPath=`"$smoke`"", "--extensionTestsPath=`"$(Join-Path $smoke 'index.js')`"",
 			'--skip-welcome', '--skip-release-notes', '--disable-workspace-trust', '--new-window', "`"$SmokeWs`""
 		)

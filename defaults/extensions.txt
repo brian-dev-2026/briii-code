@@ -13,10 +13,11 @@ usernamehw.errorlens
 dotenv.dotenv-vscode
 yoavbls.pretty-ts-errors
 
-# Everyday helpers: React snippets (rafce + Tab), paired tag rename, import path completion,
-# run the current file (Ctrl+Alt+N), .http API requests, and a TODO/FIXME panel
+# Everyday helpers: React snippets (rafce + Tab), import path completion, run the current file
+# (Ctrl+Alt+N), .http API requests, and a TODO/FIXME panel. Paired tag rename is VS Code's own
+# editor.linkedEditing (HTML, JSX/TSX, Vue): not formulahendry.auto-rename-tag, which activates
+# at every start and cost ~90 MB (58 MB of extension-host heap plus its own server process).
 dsznajder.es7-react-js-snippets
-formulahendry.auto-rename-tag
 christian-kohler.path-intellisense
 formulahendry.code-runner
 humao.rest-client

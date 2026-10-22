@@ -71,6 +71,8 @@ async function run() {
 			'workbench.iconTheme': 'material-icon-theme',
 			'editor.defaultFormatter': 'esbenp.prettier-vscode',
 			'editor.formatOnSave': true,
+			// Renames the closing tag with the opening one (replaced the Auto Rename Tag extension).
+			'editor.linkedEditing': true,
 			'workbench.experimental.modernUI': false,
 			'window.controlsStyle': 'custom',
 			'window.menuBarVisibility': 'compact',
@@ -324,6 +326,25 @@ async function run() {
 			120000, 'basedpyright error diagnostic', 1000);
 		return diag.message.split('\n')[0].slice(0, 70);
 	}, 150000);
+
+	await check('linked editing: HTML and TSX tags rename in pairs', async () => {
+		const found = [];
+		for (const [name, text] of [['tag.html', '<div>x</div>\n'], ['tag.tsx', 'export const A = () => <div>x</div>;\n']]) {
+			fs.writeFileSync(file(name), text);
+			const doc = await vscode.workspace.openTextDocument(file(name));
+			await vscode.window.showTextDocument(doc);
+			const at = new vscode.Position(0, text.indexOf('<div>') + 2);
+			// Internal command without an API converter: it returns the editor's 1-based ranges.
+			const linked = await poll(async () => {
+				const r = await vscode.commands.executeCommand('_executeLinkedEditingProvider', doc.uri, at);
+				return r && r.ranges && r.ranges.length === 2 && r;
+			}, 90000, `linked ranges in ${name}`, 1000);
+			const words = linked.ranges.map(r => doc.getText(new vscode.Range(r.startLineNumber - 1, r.startColumn - 1, r.endLineNumber - 1, r.endColumn - 1)));
+			assert(words.every(w => w === 'div'), `${name}: linked ${JSON.stringify(words)}`);
+			found.push(`${name}: ${words.join('/')}`);
+		}
+		return found.join(', ');
+	}, 200000);
 
 	await check('Prettier: formats JavaScript on command', async () => {
 		const doc = await vscode.workspace.openTextDocument(file('fmt.js'));

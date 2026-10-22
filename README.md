@@ -72,7 +72,7 @@ To get Windows' own window buttons back (with Snap Layouts), set `"window.contro
 - **Integrated Browser:** a real Chromium view with DevTools and device emulation. `localhost`
   links (for example from `npm run dev`) open in it.
 - **Web development:** Prettier (formats on save), ESLint, Tailwind CSS, Error Lens, GitLens,
-  Pretty TypeScript Errors, React snippets, Auto Rename Tag, Path Intellisense, REST Client,
+  Pretty TypeScript Errors, React snippets, paired tag rename, Path Intellisense, REST Client,
   Todo Tree, Vitest and Playwright test explorers, npm IntelliSense, dotenv, YAML, TOML,
   GitHub Actions and Project Manager.
 - **Python:** the Python extension, the debugger and basedpyright (instead of Pylance), with

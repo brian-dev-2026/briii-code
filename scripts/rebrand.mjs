@@ -182,6 +182,29 @@ updateChecksum(jsRel);
 	console.log(`Patched: draw VS Code's own window buttons (main process, ${patched.join(', ')})`);
 }
 
+// On Windows the GitHub token lives in a cross-app shared store in the home folder
+// (~/.briii-shared), but each --user-data-dir has its own encryption key (its Local State). A
+// secret that doesn't decrypt is deleted, so any other profile (verify.ps1, a test window) that
+// asked for GitHub sign-in deleted the real token: "signed out after every new version". Keep
+// shared secrets that don't decrypt; signing in again overwrites them. Missing it in the
+// workbench brings the sign-outs back silently, so the build fails instead of warning.
+{
+	const find = /("\[secrets\] deleting invalid secret for key:",[\w$]+\),)this\.removeValueFromStorage\(([\w$]+),/;
+	const patched = ['vs/workbench/workbench.desktop.main.js', 'vs/sessions/sessions.desktop.main.js',
+		'vs/workbench/api/node/extensionHostProcess.js', 'vs/workbench/api/worker/extensionHostWorkerMain.js'].filter(rel => {
+		const file = path.join(outDir, ...rel.split('/'));
+		if (!fs.existsSync(file)) return false;
+		const text = fs.readFileSync(file, 'utf8');
+		if (!text.includes('useSharedStorage(') || !find.test(text)) return false;
+		fs.writeFileSync(file, text.replace(find, '$1this.useSharedStorage($2)||this.removeValueFromStorage($2,'));
+		if (product.checksums?.[rel]) updateChecksum(rel);
+		return true;
+	});
+	must(patched.includes('vs/workbench/workbench.desktop.main.js'),
+		'could not keep shared secrets that fail to decrypt: the secret storage code was not found in workbench.desktop.main.js');
+	console.log(`Patched: keep the shared GitHub token when another profile can't decrypt it (${patched.join(', ')})`);
+}
+
 // The startup splash redraws the layout saved by the previous session. Briii used VS Code's modern
 // UI (floating cards) until 2026-10-06 and is flat now, so after that upgrade the window would open
 // with cards and then jump. Drop saved layouts that are modern UI (as VS Code already does when

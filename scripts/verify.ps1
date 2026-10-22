@@ -42,7 +42,10 @@ $Work = Join-Path $env:TEMP "briii-verify-$([guid]::NewGuid().ToString('N').Subs
 $App = Join-Path $Work 'app'
 $UserData = Join-Path $Work 'user-data'
 $ExtDir = Join-Path $Work 'extensions'
-New-Item -ItemType Directory -Force $Work, $UserData, $ExtDir | Out-Null
+# The cross-app shared store (GitHub token) is in the home folder, not the user data folder. A
+# test profile has another encryption key, so it must never open the real one.
+$SharedData = Join-Path $Work 'shared-data'
+New-Item -ItemType Directory -Force $Work, $UserData, $ExtDir, $SharedData | Out-Null
 # Keep the app's updater away from the real release feed and the real update folder.
 $env:BRIII_UPDATE_DIR = Join-Path $Work 'updates'
 $env:BRIII_UPDATE_FEED = 'http://127.0.0.1:9/latest'
@@ -91,7 +94,7 @@ $exe = Join-Path $App "$($Brand.exeName).exe"
 $cli = Join-Path $App "bin\$($Brand.applicationName).cmd"
 function Invoke-Cli {
 	$ErrorActionPreference = 'Continue'  # stderr from a native command must not throw in PS 5.1
-	$out =& $cli --user-data-dir $UserData --extensions-dir $ExtDir @args 2>&1 | Out-String
+	$out =& $cli --user-data-dir $UserData --shared-data-dir $SharedData --extensions-dir $ExtDir @args 2>&1 | Out-String
 	if ($LASTEXITCODE -ne 0) { throw "exit $LASTEXITCODE`n$out" }
 	return $out
 }
@@ -168,6 +171,11 @@ try {
 		}
 		$css = Get-Content (Join-Path $appDir 'out\vs\workbench\workbench.desktop.main.css') -Raw
 		Assert ($css -match 'Briii Code - Apple-style UI') 'apple.css not appended'
+	}
+
+	Check 'a profile that can''t decrypt the shared GitHub token keeps it (no sign-out)' {
+		$js = [IO.File]::ReadAllText((Join-Path $App 'resources\app\out\vs\workbench\workbench.desktop.main.js'))
+		Assert ($js -match 'deleting invalid secret for key:",[\w$]+\),this\.useSharedStorage\(') 'rebrand.mjs secret-storage patch missing'
 	}
 
 	Check 'apple.css only targets classes this VS Code has' {
@@ -264,7 +272,7 @@ try {
 			ForEach-Object { (($_ -replace '#.*$', '').Trim() -split '@')[0] } | Where-Object { $_ }) -join ','
 		$smoke = Join-Path $PSScriptRoot 'smoke'
 		$p = Start-Process $exe -PassThru -ArgumentList @(
-			"--user-data-dir=`"$SmokeData`"", "--extensions-dir=`"$ExtDir`"",
+			"--user-data-dir=`"$SmokeData`"", "--shared-data-dir=`"$SharedData`"", "--extensions-dir=`"$ExtDir`"",
 			"--extensionDevelopmentPath=`"$smoke`"", "--extensionTestsPath=`"$(Join-Path $smoke 'index.js')`"",
 			'--skip-welcome', '--skip-release-notes', '--disable-workspace-trust', '--new-window', "`"$SmokeWs`""
 		)
@@ -309,7 +317,7 @@ try {
 			$open = @("`"$Root`"")
 			if ($theme -eq 'Briii Light') { $open += "`"$(Join-Path $Root 'scripts\rebrand.mjs')`"" }
 			Start-Process $exe -ArgumentList (@(
-				"--user-data-dir=`"$UserData`"", "--extensions-dir=`"$ExtDir`"", '--new-window', '--skip-welcome'
+				"--user-data-dir=`"$UserData`"", "--shared-data-dir=`"$SharedData`"", "--extensions-dir=`"$ExtDir`"", '--new-window', '--skip-welcome'
 			) + $open)
 			$proc = $null
 			for ($i = 0; $i -lt 60 -and -not $proc; $i++) {

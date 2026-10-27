@@ -9,12 +9,16 @@
 .EXAMPLE
   .\scripts\verify.ps1                       # newest installer in out\
   .\scripts\verify.ps1 -Installer out\BriiiCode-Setup-x64-1.135.06055.exe
+  .\scripts\verify.ps1 -AppDir .cache\stage\1.143.17183   # while Briii Code is installed
 #>
 [CmdletBinding()]
 param(
 	[string]$Installer,
 	# Skip the in-app smoke tests and screenshots (CI: the hosted runner has no interactive desktop).
-	[switch]$NoGui
+	[switch]$NoGui,
+	# Test this unpacked app (build.ps1's stage folder) instead of installing: no install or
+	# uninstall, so it runs next to an installed Briii Code. The installer is not tested.
+	[string]$AppDir
 )
 
 $ErrorActionPreference = 'Stop'
@@ -34,14 +38,16 @@ if (-not $Installer) {
 $Installer = (Resolve-Path $Installer).Path
 
 $uninstallKey = "Software\Microsoft\Windows\CurrentVersion\Uninstall\{$($Brand.ids.win32x64AppId)}_is1"
-foreach ($hive in 'HKCU:', 'HKLM:') {
-	if (Test-Path "$hive\$uninstallKey") {
-		throw "$($Brand.nameLong) is already installed. Uninstall it first - verify.ps1 installs and removes its own copy."
+if (-not $AppDir) {
+	foreach ($hive in 'HKCU:', 'HKLM:') {
+		if (Test-Path "$hive\$uninstallKey") {
+			throw "$($Brand.nameLong) is already installed. Uninstall it first (or use -AppDir) - verify.ps1 installs and removes its own copy."
+		}
 	}
 }
 
 $Work = Join-Path $env:TEMP "briii-verify-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
-$App = Join-Path $Work 'app'
+$App = if ($AppDir) { (Resolve-Path $AppDir).Path } else { Join-Path $Work 'app' }
 $UserData = Join-Path $Work 'user-data'
 $ExtDir = Join-Path $Work 'extensions'
 # The cross-app shared store (GitHub token) is in the home folder, not the user data folder, and
@@ -102,11 +108,11 @@ function Invoke-Cli {
 	return $out
 }
 
-Write-Host "Verifying $Installer"
+Write-Host "Verifying $(if ($AppDir) { $App } else { $Installer })"
 Write-Host "Work folder: $Work"
 
 try {
-	Check 'silent install' {
+	if (-not $AppDir) { Check 'silent install' {
 		$p = Start-Process $Installer -Wait -PassThru -ArgumentList @(
 			'/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CURRENTUSER', '/NOSHELL=1',
 			"/DIR=`"$App`"", '/TASKS=""'
@@ -114,7 +120,7 @@ try {
 		Assert ($p.ExitCode -eq 0) "installer exit code $($p.ExitCode)"
 		Assert (Test-Path $exe) "missing $exe"
 		Assert (Test-Path $cli) "missing $cli"
-	}
+	} }
 
 	Check 'CLI --version' {
 		$v = (Invoke-Cli --version).Trim() -split "`r?`n"
@@ -374,7 +380,7 @@ try {
 	Start-Sleep -Seconds 2
 
 	$uninstaller = Join-Path $App 'unins000.exe'
-	if (Test-Path $uninstaller) {
+	if (-not $AppDir -and (Test-Path $uninstaller)) {
 		Check 'silent uninstall (also removes downloaded updates)' {
 			# Only this verify copy is installed (checked at the start), so the folder is ours to fill.
 			$updates = Join-Path $env:LOCALAPPDATA "$($Brand.nameLong)\updates"

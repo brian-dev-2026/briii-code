@@ -7,7 +7,18 @@ const os = require('os');
 const path = require('path');
 const { readSnapshot, applyChanges, localPath } = require('../lib/files');
 
-const tempDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'briii-sync-test-'));
+// Removed when this file's tests exit, so test runs don't pile up folders in %TEMP%.
+const tempDirs = [];
+process.on('exit', () => {
+	for (const dir of tempDirs) {
+		try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* still in use */ }
+	}
+});
+const tempDir = () => {
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'briii-sync-test-'));
+	tempDirs.push(dir);
+	return dir;
+};
 
 test('readSnapshot maps snippets to snippets__ names and skips other files', () => {
 	const user = tempDir();

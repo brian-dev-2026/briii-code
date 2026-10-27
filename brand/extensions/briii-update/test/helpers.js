@@ -70,8 +70,18 @@ async function startFeed({ id, bytes = crypto.randomBytes(1024), badSha = false,
 	};
 }
 
+// Removed when the test file's process exits, so test runs don't pile up folders in %TEMP%.
+const tempDirs = [];
+process.on('exit', () => {
+	for (const dir of tempDirs) {
+		try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* still in use */ }
+	}
+});
+
 function tempDir() {
-	return fs.mkdtempSync(path.join(os.tmpdir(), 'briii-update-test-'));
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'briii-update-test-'));
+	tempDirs.push(dir);
+	return dir;
 }
 
 module.exports = { startFeed, tempDir };

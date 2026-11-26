@@ -267,11 +267,24 @@ async function installPrevious() {
 		vscode.window.showWarningMessage("Briii Code can't update itself here: it is installed for all users, or in a folder you can't write to.");
 		return { status: 'failed', error: 'install folder not writable' };
 	}
-	const args = { listUrl: releasesUrl(), dir: updateDir(), current, keys: trustedKeys() };
+	let choice;
+	const confirm = async release => {
+		if (!mayRunInstaller()) {
+			return true; // test mode: no modal, and the installer is not started
+		}
+		choice = await vscode.window.showWarningMessage(
+			`Install Briii Code ${release.id} instead of ${current}?`,
+			{ modal: true, detail: `${current} won't be installed again; updates resume with the next newer release.` },
+			'Restart and Install', 'Install on Close');
+		return choice;
+	};
 	const result = await vscode.window.withProgress({
 		location: vscode.ProgressLocation.Notification,
-		title: 'Briii Code: downloading the previous version',
-	}, () => prepareRollback(args));
+		title: 'Briii Code: preparing the previous version',
+	}, () => prepareRollback({ listUrl: releasesUrl(), dir: updateDir(), current, keys: trustedKeys(), confirm }));
+	if (result.status === 'cancelled') {
+		return result;
+	}
 	if (result.status === 'none') {
 		vscode.window.showInformationMessage('No earlier signed release is available.');
 		return result;
@@ -285,13 +298,6 @@ async function installPrevious() {
 	log(`Briii Code ${result.id} is downloaded and verified (rollback from ${current}).`);
 	if (!mayRunInstaller()) {
 		return result; // test mode: stop before the installer
-	}
-	const choice = await vscode.window.showWarningMessage(
-		`Install Briii Code ${result.id} instead of ${current}?`,
-		{ modal: true, detail: `${current} won't be installed again; updates resume with the next newer release.` },
-		'Restart and Install', 'Install on Close');
-	if (!choice) {
-		return result; // stays prepared; installs only if the user later picks Install on Close
 	}
 	installRequested = true;
 	if (choice === 'Restart and Install') {

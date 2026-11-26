@@ -274,3 +274,32 @@ test('a check finishing does not unregister a queued rollback', async t => {
 	assert.equal(state.pending.rollback, true);
 	assert.equal(state.heldBack, ID);
 });
+
+test('prepareRollback asks before downloading', async t => {
+	const feed = await startFeed({ id: ID, releases: [PREV] });
+	t.after(feed.close);
+	let asked;
+	let blobHitsWhenAsked = 'unset';
+	const r = await prepareRollback({
+		listUrl: feed.listUrl, dir: tempDir(), current: ID, keys,
+		confirm: async release => { asked = release; blobHitsWhenAsked = feed.hits['/blob']; return true; },
+	});
+	assert.equal(asked.id, PREV);
+	assert.equal(blobHitsWhenAsked, undefined);
+	assert.equal(r.status, 'ready');
+});
+
+test('prepareRollback cancelled leaves state and the pending update untouched', async t => {
+	const feed = await startFeed({ id: ID, releases: [PREV] });
+	t.after(feed.close);
+	const dir = tempDir();
+	const newer = fakeInstaller(dir, '1.135.06055-20261003.1');
+	writeStateFile(dir, { pending: { id: '1.135.06055-20261003.1', path: newer, sha256: 'x' }, failures: 1, lastCheck: 0, heldBack: null });
+	const stateFile = path.join(dir, 'state.json');
+	const before = fs.readFileSync(stateFile);
+	const r = await prepareRollback({ listUrl: feed.listUrl, dir, current: ID, keys, confirm: async () => false });
+	assert.deepEqual(r, { status: 'cancelled' });
+	assert.deepEqual(fs.readFileSync(stateFile), before);
+	assert.equal(fs.existsSync(newer), true);
+	assert.equal(feed.hits['/blob'], undefined);
+});

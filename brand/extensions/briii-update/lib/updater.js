@@ -84,8 +84,9 @@ function isStalePending(pending, current) {
 /**
  * Prepares the newest release older than `current` as a pending rollback installer, replacing any
  * pending update, and holds `current` back so the updater doesn't offer it again. Shares the
- * in-flight run with checkForUpdate for the same folder.
- * @returns {Promise<{ status: 'none' } | { status: 'ready', id: string } | { status: 'failed', error: string }>}
+ * in-flight run with checkForUpdate for the same folder. `confirm(release)`, when given, is asked
+ * after the release is found and before anything is downloaded or written; a falsy answer cancels.
+ * @returns {Promise<{ status: 'none' } | { status: 'cancelled' } | { status: 'ready', id: string } | { status: 'failed', error: string }>}
  */
 function prepareRollback(args) {
 	const running = inflight.get(args.dir);
@@ -93,11 +94,14 @@ function prepareRollback(args) {
 	return enqueue(args.dir, 'rollback', wait.then(() => rollback(args)));
 }
 
-async function rollback({ listUrl, dir, current, keys }) {
+async function rollback({ listUrl, dir, current, keys, confirm }) {
 	try {
 		const previous = await fetchPrevious(listUrl, current);
 		if (!previous) {
 			return { status: 'none' };
+		}
+		if (confirm && !await confirm(previous)) {
+			return { status: 'cancelled' }; // nothing downloaded, nothing written
 		}
 		const state = readState(dir);
 		const file = await downloadVerified(previous, dir, keys ? { keys } : {}); // also removes other installers

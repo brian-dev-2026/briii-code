@@ -131,3 +131,13 @@ test('fetchPrevious returns null when nothing older is listed', async t => {
 	t.after(feed.close);
 	assert.equal(await fetchPrevious(feed.listUrl, '1.135.06055-20261126.0088'), null);
 });
+
+test('a 304 for a cached release without sigUrl fetches the release again', async t => {
+	const feed = await startFeed({ id: ID });
+	t.after(feed.close);
+	const cache = { etag: `"${ID}"`, latest: { id: ID, installerUrl: 'x', shaUrl: 'y', pageUrl: 'z' } };
+	const r = await fetchLatest(feed.url, cache);
+	assert.ok(r.sigUrl);
+	assert.equal(feed.hits.notModified, 1);
+	assert.ok(cache.latest.sigUrl);
+});

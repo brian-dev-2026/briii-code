@@ -22,7 +22,7 @@ function sign(data) {
 
 /**
  * Starts a fake release feed. Paths:
- *   /latest            release JSON for `id` (installer asset redirects like GitHub's)
+ *   /latest            release JSON for `id` (installer asset redirects like GitHub's), after delayMs
  *   /releases          JSON array of releases for [id, ...releases], in the order given
  *   /asset/<name>.exe  302 -> /blob
  *   /blob              the installer bytes (a truncated body with truncate, headers only with stall)
@@ -32,7 +32,7 @@ function sign(data) {
  * Every listed release is served from the same bytes. Returns { url, listUrl, bytes, hits, close };
  * hits counts requests per path.
  */
-async function startFeed({ id, bytes = crypto.randomBytes(1024), badSha = false, badSig = false, unsigned = false, releases = [], truncate = false, stall = false }) {
+async function startFeed({ id, bytes = crypto.randomBytes(1024), badSha = false, badSig = false, unsigned = false, releases = [], truncate = false, stall = false, delayMs = 0 }) {
 	const sha = crypto.createHash('sha256').update(badSha ? Buffer.from('other') : bytes).digest('hex');
 	const nameOf = rid => `BriiiCode-Setup-x64-${rid}.exe`;
 	const shaFile = rid => Buffer.from(`${sha}  ${nameOf(rid)}\n`);
@@ -62,7 +62,7 @@ async function startFeed({ id, bytes = crypto.randomBytes(1024), badSha = false,
 			}
 			res.setHeader('etag', ETAG);
 			res.setHeader('content-type', 'application/json');
-			res.end(JSON.stringify(releaseJson(id)));
+			setTimeout(() => res.end(JSON.stringify(releaseJson(id))), delayMs);
 		} else if (req.url === '/releases') {
 			res.setHeader('content-type', 'application/json');
 			res.end(JSON.stringify([id, ...releases].map(releaseJson)));

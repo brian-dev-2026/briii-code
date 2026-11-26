@@ -103,7 +103,7 @@ test('checkForUpdate: drops a pending installer that is not newer than the runni
 	const dir = tempDir();
 	const old = path.join(dir, '1.135.06055-20261001.5.exe');
 	fs.writeFileSync(old, 'older');
-	fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify({ pending: { id: '1.135.06055-20261001.5', path: old, sha256: 'x' }, failures: 1, lastCheck: 0 }));
+	fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify({ pending: { id: '1.135.06055-20261001.5', path: old, sha256: 'x', signed: true }, failures: 1, lastCheck: 0 }));
 	const r = await checkForUpdate({ feedUrl: feed.url, dir, current: ID, mode: 'auto', keys });
 	assert.equal(r.status, 'none');
 	assert.equal(readState(dir).pending, null);
@@ -152,7 +152,7 @@ test('checkForUpdate: a release newer than heldBack replaces a pending rollback 
 	t.after(feed.close);
 	const dir = tempDir();
 	const rb = fakeInstaller(dir, PREV);
-	writeStateFile(dir, { pending: { id: PREV, path: rb, sha256: 'x', rollback: true }, failures: 0, lastCheck: 0, heldBack: '1.135.06055-20261001.9' });
+	writeStateFile(dir, { pending: { id: PREV, path: rb, sha256: 'x', rollback: true, signed: true }, failures: 0, lastCheck: 0, heldBack: '1.135.06055-20261001.9' });
 	const r = await checkForUpdate({ feedUrl: feed.url, dir, current: '1.135.06055-20261001.9', mode: 'auto', keys });
 	assert.equal(r.status, 'ready');
 	const state = readState(dir);
@@ -177,7 +177,7 @@ test('checkForUpdate: a rollback pending installer older than the running build 
 	t.after(feed.close);
 	const dir = tempDir();
 	const rb = fakeInstaller(dir, PREV);
-	writeStateFile(dir, { pending: { id: PREV, path: rb, sha256: 'x', rollback: true }, failures: 0, lastCheck: 0, heldBack: ID });
+	writeStateFile(dir, { pending: { id: PREV, path: rb, sha256: 'x', rollback: true, signed: true }, failures: 0, lastCheck: 0, heldBack: ID });
 	const r = await checkForUpdate({ feedUrl: feed.url, dir, current: ID, mode: 'auto', keys });
 	assert.equal(r.status, 'none');
 	assert.equal(readState(dir).pending.id, PREV);
@@ -189,18 +189,18 @@ test('checkForUpdate: a rollback pending installer is dropped once it is the run
 	t.after(feed.close);
 	const dir = tempDir();
 	const rb = fakeInstaller(dir, PREV);
-	writeStateFile(dir, { pending: { id: PREV, path: rb, sha256: 'x', rollback: true }, failures: 0, lastCheck: 0, heldBack: ID });
+	writeStateFile(dir, { pending: { id: PREV, path: rb, sha256: 'x', rollback: true, signed: true }, failures: 0, lastCheck: 0, heldBack: ID });
 	await checkForUpdate({ feedUrl: feed.url, dir, current: PREV, mode: 'auto', keys });
 	assert.equal(readState(dir).pending, null);
 	assert.equal(fs.existsSync(rb), false);
 });
 
 test('isStalePending: updates must be newer, rollbacks older', () => {
-	assert.equal(isStalePending({ id: ID }, OLD), false);
-	assert.equal(isStalePending({ id: OLD }, ID), true);
-	assert.equal(isStalePending({ id: OLD, rollback: true }, ID), false);
-	assert.equal(isStalePending({ id: ID, rollback: true }, ID), true);
-	assert.equal(isStalePending({ id: '1.135.06055-20261001.5', rollback: true }, '1.136.1-local'), false);
+	assert.equal(isStalePending({ id: ID, signed: true }, OLD), false);
+	assert.equal(isStalePending({ id: OLD, signed: true }, ID), true);
+	assert.equal(isStalePending({ id: OLD, rollback: true, signed: true }, ID), false);
+	assert.equal(isStalePending({ id: ID, rollback: true, signed: true }, ID), true);
+	assert.equal(isStalePending({ id: '1.135.06055-20261001.5', rollback: true, signed: true }, '1.136.1-local'), false);
 });
 
 test('prepareRollback prepares the previous release and holds the current one', async t => {
@@ -208,8 +208,9 @@ test('prepareRollback prepares the previous release and holds the current one', 
 	t.after(feed.close);
 	const dir = tempDir();
 	const r = await prepareRollback({ listUrl: feed.listUrl, dir, current: ID, keys });
-	assert.deepEqual(r, { status: 'ready', id: PREV });
+	assert.deepEqual(r, { status: 'ready', id: PREV, pending: readState(dir).pending });
 	const state = readState(dir);
+	assert.equal(state.pending.signed, true);
 	assert.equal(state.pending.rollback, true);
 	assert.equal(state.pending.id, PREV);
 	assert.equal(state.heldBack, ID);
@@ -221,7 +222,7 @@ test('prepareRollback replaces a pending update', async t => {
 	t.after(feed.close);
 	const dir = tempDir();
 	const newer = fakeInstaller(dir, '1.135.06055-20261003.1');
-	writeStateFile(dir, { pending: { id: '1.135.06055-20261003.1', path: newer, sha256: 'x' }, failures: 2, lastCheck: 0, heldBack: null });
+	writeStateFile(dir, { pending: { id: '1.135.06055-20261003.1', path: newer, sha256: 'x', signed: true }, failures: 2, lastCheck: 0, heldBack: null });
 	const r = await prepareRollback({ listUrl: feed.listUrl, dir, current: ID, keys });
 	assert.equal(r.status, 'ready');
 	assert.equal(fs.existsSync(newer), false);
@@ -294,7 +295,7 @@ test('prepareRollback cancelled leaves state and the pending update untouched', 
 	t.after(feed.close);
 	const dir = tempDir();
 	const newer = fakeInstaller(dir, '1.135.06055-20261003.1');
-	writeStateFile(dir, { pending: { id: '1.135.06055-20261003.1', path: newer, sha256: 'x' }, failures: 1, lastCheck: 0, heldBack: null });
+	writeStateFile(dir, { pending: { id: '1.135.06055-20261003.1', path: newer, sha256: 'x', signed: true }, failures: 1, lastCheck: 0, heldBack: null });
 	const stateFile = path.join(dir, 'state.json');
 	const before = fs.readFileSync(stateFile);
 	const r = await prepareRollback({ listUrl: feed.listUrl, dir, current: ID, keys, confirm: async () => false });
@@ -302,4 +303,63 @@ test('prepareRollback cancelled leaves state and the pending update untouched', 
 	assert.deepEqual(fs.readFileSync(stateFile), before);
 	assert.equal(fs.existsSync(newer), true);
 	assert.equal(feed.hits['/blob'], undefined);
+});
+
+const BAD = '1.135.06055-20261003.0003';
+const P1 = '1.135.06055-20261002.0002';
+const P2 = '1.135.06055-20261001.0001';
+
+function clearPending(dir) {
+	writeStateFile(dir, { ...readState(dir), pending: null });
+}
+
+test('prepareRollback twice keeps holding the first version left', async t => {
+	const feed = await startFeed({ id: BAD, releases: [P1, P2] });
+	t.after(feed.close);
+	const dir = tempDir();
+	assert.equal((await prepareRollback({ listUrl: feed.listUrl, dir, current: BAD, keys })).id, P1);
+	clearPending(dir); // P1 installed
+	assert.equal((await prepareRollback({ listUrl: feed.listUrl, dir, current: P1, keys })).id, P2);
+	clearPending(dir);
+	assert.equal(readState(dir).heldBack, BAD);
+	const r = await checkForUpdate({ feedUrl: feed.url, dir, current: P2, mode: 'auto', keys });
+	assert.equal(r.status, 'none');
+});
+
+test('a check does not erase a rollback written by another window during the check', async t => {
+	const feed = await startFeed({ id: ID, releases: [PREV], delayMs: 300 });
+	t.after(feed.close);
+	const dir = tempDir();
+	const checking = checkForUpdate({ feedUrl: feed.url, dir, current: ID, mode: 'auto', keys });
+	await new Promise(r => setTimeout(r, 100));
+	const rb = fakeInstaller(dir, PREV);
+	writeStateFile(dir, { pending: { id: PREV, path: rb, sha256: 'x', rollback: true, signed: true }, failures: 0, lastCheck: 0, heldBack: ID });
+	assert.equal((await checking).status, 'none');
+	const state = readState(dir);
+	assert.equal(state.pending?.id, PREV);
+	assert.equal(state.heldBack, ID);
+	assert.ok(state.lastCheck > 0);
+});
+
+test('a pending entry without signed is dropped', async t => {
+	const feed = await startFeed({ id: ID });
+	t.after(feed.close);
+	const dir = tempDir();
+	const p = fakeInstaller(dir, ID);
+	writeStateFile(dir, { pending: { id: ID, path: p, sha256: 'x' }, failures: 0, lastCheck: 0, heldBack: null });
+	assert.equal(isStalePending({ id: ID }, OLD), true);
+	assert.equal(isStalePending({ id: PREV, rollback: true }, ID), true);
+	const r = await checkForUpdate({ feedUrl: feed.url, dir, current: ID, mode: 'auto', keys });
+	assert.equal(r.status, 'none');
+	assert.equal(readState(dir).pending, null);
+	assert.equal(fs.existsSync(p), false);
+});
+
+test('check reports the release it skipped because of the hold', async t => {
+	const feed = await startFeed({ id: ID });
+	t.after(feed.close);
+	const dir = tempDir();
+	writeStateFile(dir, { pending: null, failures: 0, lastCheck: 0, heldBack: ID });
+	const r = await checkForUpdate({ feedUrl: feed.url, dir, current: OLD, mode: 'auto', keys });
+	assert.deepEqual(r, { status: 'none', heldBack: ID });
 });

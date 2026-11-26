@@ -30,7 +30,13 @@ async function fetchLatest(feedUrl, cache = {}) {
 	const headers = cache.etag ? { ...HEADERS, 'if-none-match': cache.etag } : HEADERS;
 	const res = await fetch(feedUrl, { headers, signal: AbortSignal.timeout(FEED_TIMEOUT_MS) });
 	if (res.status === 304 && cache.etag) {
-		return cache.latest;
+		if (cache.latest && cache.latest.sigUrl) {
+			return cache.latest;
+		}
+		// Cached by the updater from before signing: fetch the release again, unconditionally.
+		delete cache.etag;
+		delete cache.latest;
+		return fetchLatest(feedUrl, cache);
 	}
 	if (!res.ok) {
 		throw new Error(`release feed returned ${res.status}`);

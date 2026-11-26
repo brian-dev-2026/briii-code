@@ -203,7 +203,9 @@ async function runCheck(manual) {
 
 	if (manual) {
 		if (result.status === 'none') {
-			vscode.window.showInformationMessage('Briii Code is up to date.');
+			vscode.window.showInformationMessage(result.heldBack
+				? `Briii Code is up to date. ${result.heldBack} is held back until a newer release is published.`
+				: 'Briii Code is up to date.');
 		} else if (result.status === 'failed') {
 			vscode.window.showWarningMessage(`Couldn't check for updates: ${result.error}`, 'Show Update Log')
 				.then(choice => choice && output.show());
@@ -301,7 +303,7 @@ async function installPrevious() {
 	}
 	installRequested = true;
 	if (choice === 'Restart and Install') {
-		startHelper(readState(updateDir()).pending, true);
+		startHelper(result.pending, true);
 		setTimeout(() => { helperStarted = false; }, 70 * 1000);
 		await vscode.commands.executeCommand('workbench.action.quit');
 	}
@@ -335,7 +337,7 @@ function deactivate() {
 	}
 	const state = readState(updateDir());
 	if (shouldInstallOnExit({
-		pendingId: state.pending?.id,
+		pendingId: state.pending && !isStalePending(state.pending, product.briiiRelease) ? state.pending.id : undefined,
 		current: product.briiiRelease,
 		installerExists: !!state.pending && fs.existsSync(state.pending.path),
 		mode: mode(),

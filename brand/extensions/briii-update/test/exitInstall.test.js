@@ -64,3 +64,15 @@ test('a rollback installs on close from a local build', () => {
 test('a rollback that is not older than the running build never installs', () => {
 	assert.equal(shouldInstallOnExit({ ...base, rollback: true }), false);
 });
+
+test('a rollback installs on close with updates off', () => {
+	assert.equal(shouldInstallOnExit({ ...base, pendingId: OLDER, rollback: true, mode: 'off' }), true);
+});
+
+test('a rollback installs on close in notify mode without installRequested', () => {
+	assert.equal(shouldInstallOnExit({ ...base, pendingId: OLDER, rollback: true, mode: 'notify', installRequested: false }), true);
+});
+
+test('a rollback stops after maxFailures', () => {
+	assert.equal(shouldInstallOnExit({ ...base, pendingId: OLDER, rollback: true, failures: 3 }), false);
+});

@@ -27,8 +27,9 @@ $ProgressPreference = 'SilentlyContinue'
 
 $Root = Split-Path -Parent $PSScriptRoot
 $Brand = Get-Content (Join-Path $Root 'brand\brand.json') -Raw | ConvertFrom-Json
-$OnlineExt = 'streetsidesoftware.code-spell-checker'   # must not be in defaults\extensions.txt
-$VsixExt = @{ ns = 'EditorConfig'; name = 'EditorConfig' }
+# Install tests use two small extensions that are not bundled (neither may be in defaults\extensions.txt).
+$OnlineExt = 'oderwat.indent-rainbow'
+$VsixExt = @{ ns = 'aaron-bond'; name = 'better-comments' }
 
 if (-not $Installer) {
 	$Installer = Get-ChildItem (Join-Path $Root 'out') -Filter '*-Setup-x64-*.exe' |

@@ -1,0 +1,38 @@
+# Spike: do verify.ps1's in-app smoke tests and screenshots work on a GitHub Windows runner?
+# The release workflow runs verify.ps1 -NoGui. Run this one by hand (Actions > GUI smoke test >
+# Run workflow); once it passes reliably, the release workflow can drop -NoGui.
+name: GUI smoke test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Inno Setup
+        run: choco install innosetup --version 6.7.1 -y --no-progress
+
+      - name: Build
+        run: .\scripts\build.ps1
+
+      - name: Verify, with in-app smoke tests and screenshots
+        run: .\scripts\verify.ps1
+
+      # The smoke results are in the Verify step's log.
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gui-smoke-screenshots
+          path: out/screenshot-*.png
+          if-no-files-found: warn

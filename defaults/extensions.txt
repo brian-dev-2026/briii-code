@@ -35,6 +35,12 @@ christian-kohler.npm-intellisense
 mechatroner.rainbow-csv
 alefragnani.project-manager
 
+# Project formatting rules from .editorconfig (indent, line endings, final newline), and a
+# spell checker for code and comments. Its typos are hints (faint dots): Problems and Error
+# Lens stay quiet (cSpell.diagnosticLevel in settings.json).
+EditorConfig.EditorConfig
+streetsidesoftware.code-spell-checker
+
 # Detailed file and folder icons (the default icon theme)
 PKief.material-icon-theme
 

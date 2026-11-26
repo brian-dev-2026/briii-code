@@ -16,11 +16,21 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib\vscodium-lag.ps1')
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $headers = @{ 'User-Agent' = 'briii-release-plan'; Accept = 'application/vnd.github+json' }
 if ($env:GH_TOKEN) { $headers.Authorization = "Bearer $env:GH_TOKEN" }   # avoids the anonymous rate limit
 
-$vscodium = (Invoke-RestMethod 'https://api.github.com/repos/VSCodium/vscodium/releases/latest' -Headers $headers).tag_name
+$vscodiumRelease = Invoke-RestMethod 'https://api.github.com/repos/VSCodium/vscodium/releases/latest' -Headers $headers
+$vscodium = $vscodiumRelease.tag_name
+
+# Warn (the workflow opens an issue) when VSCodium falls behind VS Code. Never blocks a build.
+$lag = $null
+try {
+	$vscode = (Invoke-RestMethod 'https://api.github.com/repos/microsoft/vscode/releases/latest' -Headers $headers).tag_name
+	$lag = Get-VSCodiumLag -VSCodiumVersion $vscodium -VSCodiumPublished $vscodiumRelease.published_at -VSCodeVersion $vscode
+} catch { Write-Warning "VS Code version check failed: $($_.Exception.Message)" }
+if ($lag) { Write-Host "Behind: $lag" }
 
 $last = $null
 try {
@@ -55,7 +65,7 @@ $build = [bool]$reason
 if ($build) { Write-Host "Build: yes ($reason)" } else { Write-Host "Build: no (last release $($last.tag_name) is current)" }
 Write-Host "VSCodium $vscodium, release $release"
 
-$out = "build=$($build.ToString().ToLower())", "vscodium=$vscodium", "release=$release"
+$out = "build=$($build.ToString().ToLower())", "vscodium=$vscodium", "release=$release", "lag=$lag"
 $out | ForEach-Object { Write-Output $_ }
 # No BOM: PowerShell 5.1's -Encoding UTF8 would add one and break the first key.
 if ($env:GITHUB_OUTPUT) { [IO.File]::AppendAllText($env:GITHUB_OUTPUT, ($out -join "`n") + "`n", (New-Object Text.UTF8Encoding $false)) }

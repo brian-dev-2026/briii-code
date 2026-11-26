@@ -51,5 +51,6 @@
 		"editor.codeActionsOnSave": { "source.organizeImports.ruff": "explicit" }
 	},
 	"code-runner.runInTerminal": true,
-	"code-runner.saveFileBeforeRun": true
+	"code-runner.saveFileBeforeRun": true,
+	"cSpell.diagnosticLevel": "Hint"
 }

@@ -5,12 +5,16 @@
 .EXAMPLE
   .\scripts\build.ps1                     # latest VSCodium release
   .\scripts\build.ps1 -Version 1.135.06055  # a specific release
+  .\scripts\build.ps1 -CooldownDays 0       # bundle the newest extension versions, however fresh
 #>
 [CmdletBinding()]
 param(
 	[string]$Version = 'latest',
 	# Release id shown to the updater, e.g. 1.135.06055-20261001.14 (CI). Local builds: <version>-local.
-	[string]$Release
+	[string]$Release,
+	# Bundle the newest extension release at least this old (lib/extension-cooldown.ps1).
+	# Entries pinned as publisher.name@version in extensions.txt are used as written.
+	[int]$CooldownDays = 7
 )
 
 $ErrorActionPreference = 'Stop'
@@ -25,6 +29,7 @@ $Icons = Join-Path $Root 'brand\icons'
 $RceditVersion = 'v2.0.0'
 
 function Step($msg) { Write-Host "==> $msg" -ForegroundColor Cyan }
+. (Join-Path $PSScriptRoot 'lib\extension-cooldown.ps1')
 
 function Invoke-Native {
 	param([string]$File, [string[]]$Arguments)
@@ -186,7 +191,55 @@ if ($exts) {
 			$codes = "curl exit $($metaStatus[$e.metaTarget])/$($metaStatus[$e.metaAny]); 22 = not found, other codes = network error"
 			throw "Extension '$($e.entry)' could not be looked up on Open VSX ($codes). See https://open-vsx.org/extension/$($e.ns)/$($e.name)"
 		}
-		$e.url = ([IO.File]::ReadAllText($file) | ConvertFrom-Json).files.download
+		$e.meta = [IO.File]::ReadAllText($file) | ConvertFrom-Json
+	}
+
+	# Cooldown: an unpinned extension whose newest version is fresh or a pre-release gets its
+	# newest older release that is settled. Older versions are looked up 8 at a time.
+	$cutoff = (Get-Date).ToUniversalTime().AddDays(-$CooldownDays)
+	$fresh = @($exts | Where-Object { $_.version -eq 'latest' -and -not (Test-SettledVersion $_.meta $cutoff) })
+	if ($CooldownDays -gt 0 -and $fresh) {
+		Step "Finding settled versions ($CooldownDays+ days old, no pre-releases) of $($fresh.Count) extension(s)"
+		$null = Get-Downloads ($fresh | ForEach-Object {
+			$_.versionsFile = Join-Path $metaDir "$($_.id).versions.json"
+			@{ url = "https://open-vsx.org/api/$($_.ns)/$($_.name)/versions?size=50"; dest = $_.versionsFile }
+		})
+		foreach ($e in $fresh) {
+			if (-not (Test-Path $e.versionsFile)) { throw "Could not list the versions of $($e.id) on Open VSX. Run again to retry." }
+			$e.candidates = Get-VersionCandidates ([IO.File]::ReadAllText($e.versionsFile) | ConvertFrom-Json) $e.meta.version
+			$e.picked = $null
+		}
+		$metaFile = { param($e, $v, $platform) Join-Path $metaDir "$($e.id)@$v$platform.json" }
+		for ($skip = 0; ; $skip += 8) {
+			$open = @($fresh | Where-Object { -not $_.picked -and $_.candidates.Count -gt $skip })
+			if (-not $open) { break }
+			$null = Get-Downloads $(foreach ($e in $open) {
+				foreach ($v in ($e.candidates | Select-Object -Skip $skip -First 8)) {
+					@{ url = "https://open-vsx.org/api/$($e.ns)/$($e.name)/win32-x64/$v"; dest = & $metaFile $e $v '.win32-x64' }
+					@{ url = "https://open-vsx.org/api/$($e.ns)/$($e.name)/$v"; dest = & $metaFile $e $v '' }
+				}
+			})
+			foreach ($e in $open) {
+				$metas = foreach ($v in ($e.candidates | Select-Object -Skip $skip -First 8)) {
+					$f = @((& $metaFile $e $v '.win32-x64'), (& $metaFile $e $v '')) | Where-Object { Test-Path $_ } | Select-Object -First 1
+					if ($f) { [IO.File]::ReadAllText($f) | ConvertFrom-Json }
+				}
+				$e.picked = Select-SettledVersion $metas $cutoff
+			}
+		}
+		foreach ($e in $fresh) {
+			if (-not $e.picked) {
+				throw "No release of $($e.id) among its newest 50 versions is $CooldownDays+ days old. Pin one in defaults\extensions.txt ($($e.id)@<version>) or build with -CooldownDays 0."
+			}
+			$why = if ($e.meta.preRelease) { 'a pre-release' } else { "$([int][math]::Floor(((Get-Date).ToUniversalTime() - (ConvertTo-UtcDate $e.meta.timestamp)).TotalDays)) days old" }
+			Write-Host "    $($e.id): $($e.meta.version) is $why; bundling $($e.picked.version)"
+			$e.meta = $e.picked
+		}
+	}
+
+	foreach ($e in $exts) {
+		$e.url = $e.meta.files.download
+		$e.shaUrl = $e.meta.files.sha256
 		$e.vsix = Join-Path $Cache ("extensions\" + [IO.Path]::GetFileName(([uri]$e.url).AbsolutePath))
 	}
 
@@ -196,6 +249,23 @@ if ($exts) {
 		$vsixStatus = Get-Downloads ($missing | ForEach-Object { @{ url = $_.url; dest = $_.vsix } })
 		$failed = @($missing | Where-Object { -not (Test-Path $_.vsix) } | ForEach-Object { "$($_.id) (curl exit $($vsixStatus[$_.vsix]))" })
 		if ($failed) { throw "Download failed: $($failed -join ', '). Run again to retry." }
+	}
+
+	# Check every .vsix (cached ones too) against the SHA-256 Open VSX publishes for it.
+	$shaJobs = foreach ($e in $exts) {
+		$e.shaFile = Join-Path $metaDir "$($e.id).sha256"
+		if ($e.shaUrl) { @{ url = $e.shaUrl; dest = $e.shaFile } }
+	}
+	if ($shaJobs) { $null = Get-Downloads $shaJobs }
+	foreach ($e in $exts) {
+		if (-not $e.shaUrl) { Write-Warning "Open VSX publishes no SHA-256 for $($e.id); bundled unchecked"; continue }
+		if (-not (Test-Path $e.shaFile)) { throw "Could not download the SHA-256 of $($e.id) from Open VSX. Run again to retry." }
+		$expected = ([IO.File]::ReadAllText($e.shaFile).Trim() -split '\s+')[0].ToLower()
+		$actual = (Get-FileHash $e.vsix -Algorithm SHA256).Hash.ToLower()
+		if ($expected -ne $actual) {
+			Remove-Item $e.vsix -Force
+			throw "Checksum mismatch for $([IO.Path]::GetFileName($e.vsix)) (expected $expected, got $actual). The file was deleted; run again."
+		}
 	}
 
 	# Old versions pile up (Claude Code alone is >100 MB per release); keep only what this build uses.

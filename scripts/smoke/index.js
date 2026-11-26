@@ -112,48 +112,97 @@ async function run() {
 	}, 240000);
 
 	// A local server that looks like GitHub's "latest release" API, with a redirecting asset URL.
-	const feed = (id, { badSha = false } = {}) => {
-		const crypto = require('crypto');
+	// Releases are signed (Ed25519 over the .sha256 file) with a key pair made now; the updater
+	// trusts it through BRIII_UPDATE_TEST_KEY, which counts only while BRIII_UPDATE_FEED is set.
+	const crypto = require('crypto');
+	const testKeys = crypto.generateKeyPairSync('ed25519');
+	const testPublicPem = testKeys.publicKey.export({ type: 'spki', format: 'pem' });
+	const feed = (id, { badSha = false, badSig = false, older = [] } = {}) => {
 		const bytes = crypto.randomBytes(1024);
-		const name = `BriiiCode-Setup-x64-${id}.exe`;
+		const nameOf = rid => `BriiiCode-Setup-x64-${rid}.exe`;
 		const sha = crypto.createHash('sha256').update(badSha ? Buffer.from('x') : bytes).digest('hex');
+		const shaFile = rid => Buffer.from(`${sha}  ${nameOf(rid)}
+`);
+		const sig = rid => crypto.sign(null, badSig ? Buffer.from('other') : shaFile(rid), testKeys.privateKey).toString('base64');
 		const srv = http.createServer((req, res) => {
 			const base = `http://127.0.0.1:${srv.address().port}`;
-			if (req.url === '/latest') res.end(JSON.stringify({ tag_name: `v${id}`, html_url: `${base}/page`, assets: [
-				{ name, browser_download_url: `${base}/a/${name}` }, { name: `${name}.sha256`, browser_download_url: `${base}/a/${name}.sha256` }] }));
-			else if (req.url === `/a/${name}`) { res.writeHead(302, { location: `${base}/blob` }); res.end(); }
+			const release = rid => ({ tag_name: `v${rid}`, html_url: `${base}/page`, assets: ['', '.sha256', '.sha256.sig'].map(ext => (
+				{ name: nameOf(rid) + ext, browser_download_url: `${base}/a/${nameOf(rid)}${ext}` })) });
+			const asset = /^\/a\/BriiiCode-Setup-x64-(.+)\.exe(\.sha256|\.sha256\.sig)?$/.exec(req.url);
+			if (req.url === '/latest') res.end(JSON.stringify(release(id)));
+			else if (req.url === '/releases') res.end(JSON.stringify([id, ...older].map(release)));
+			else if (asset && !asset[2]) { res.writeHead(302, { location: `${base}/blob` }); res.end(); }
 			else if (req.url === '/blob') res.end(bytes);
-			else if (req.url === `/a/${name}.sha256`) res.end(`${sha}  ${name}\n`);
+			else if (asset && asset[2] === '.sha256') res.end(shaFile(asset[1]));
+			else if (asset) res.end(sig(asset[1]));
 			else { res.writeHead(404); res.end(); }
 		});
-		return new Promise(r => srv.listen(0, '127.0.0.1', () => r({ url: `http://127.0.0.1:${srv.address().port}/latest`, close: () => srv.close() })));
+		return new Promise(r => srv.listen(0, '127.0.0.1', () => r({
+			url: `http://127.0.0.1:${srv.address().port}/latest`, listUrl: `http://127.0.0.1:${srv.address().port}/releases`, close: () => srv.close() })));
 	};
 	const updateDir = process.env.BRIII_UPDATE_DIR;
+	const beforeTestKey = process.env.BRIII_UPDATE_TEST_KEY;
+	process.env.BRIII_UPDATE_TEST_KEY = testPublicPem;
+	try {
+		await check('updater: finds, downloads and verifies a release', async () => {
+			assert(updateDir, 'BRIII_UPDATE_DIR not set by verify.ps1');
+			const f = await feed('9.999.99999-20991231.1');
+			const before = process.env.BRIII_UPDATE_FEED;
+			process.env.BRIII_UPDATE_FEED = f.url;
+			try {
+				const r = await vscode.commands.executeCommand('briii.update.check');
+				assert(r && r.status === 'ready', `status ${JSON.stringify(r)}`);
+				const state = JSON.parse(fs.readFileSync(path.join(updateDir, 'state.json'), 'utf8'));
+				assert(state.pending && fs.existsSync(state.pending.path), `no pending installer: ${JSON.stringify(state)}`);
+				return r.id;
+			} finally { process.env.BRIII_UPDATE_FEED = before; f.close(); }
+		});
 
-	await check('updater: finds, downloads and verifies a release', async () => {
-		assert(updateDir, 'BRIII_UPDATE_DIR not set by verify.ps1');
-		const f = await feed('9.999.99999-20991231.1');
-		const before = process.env.BRIII_UPDATE_FEED;
-		process.env.BRIII_UPDATE_FEED = f.url;
-		try {
-			const r = await vscode.commands.executeCommand('briii.update.check');
-			assert(r && r.status === 'ready', `status ${JSON.stringify(r)}`);
-			const state = JSON.parse(fs.readFileSync(path.join(updateDir, 'state.json'), 'utf8'));
-			assert(state.pending && fs.existsSync(state.pending.path), `no pending installer: ${JSON.stringify(state)}`);
-			return r.id;
-		} finally { process.env.BRIII_UPDATE_FEED = before; f.close(); }
-	});
+		await check('updater: rejects a wrong checksum', async () => {
+			const f = await feed('9.999.99999-20991231.2', { badSha: true });
+			const before = process.env.BRIII_UPDATE_FEED;
+			process.env.BRIII_UPDATE_FEED = f.url;
+			try {
+				const r = await vscode.commands.executeCommand('briii.update.check');
+				assert(r && r.status === 'failed' && /checksum mismatch/.test(r.error), `status ${JSON.stringify(r)}`);
+				assert(!fs.existsSync(path.join(updateDir, '9.999.99999-20991231.2.exe')), 'unverified installer kept');
+			} finally { process.env.BRIII_UPDATE_FEED = before; f.close(); }
+		});
 
-	await check('updater: rejects a wrong checksum', async () => {
-		const f = await feed('9.999.99999-20991231.2', { badSha: true });
-		const before = process.env.BRIII_UPDATE_FEED;
-		process.env.BRIII_UPDATE_FEED = f.url;
-		try {
-			const r = await vscode.commands.executeCommand('briii.update.check');
-			assert(r && r.status === 'failed' && /checksum mismatch/.test(r.error), `status ${JSON.stringify(r)}`);
-			assert(!fs.existsSync(path.join(updateDir, '9.999.99999-20991231.2.exe')), 'unverified installer kept');
-		} finally { process.env.BRIII_UPDATE_FEED = before; f.close(); }
-	});
+		await check('updater: rejects a bad signature', async () => {
+			const f = await feed('9.999.99999-20991231.3', { badSig: true });
+			const before = process.env.BRIII_UPDATE_FEED;
+			process.env.BRIII_UPDATE_FEED = f.url;
+			try {
+				const r = await vscode.commands.executeCommand('briii.update.check');
+				assert(r && r.status === 'failed' && /signature check failed/.test(r.error), `status ${JSON.stringify(r)}`);
+			} finally { process.env.BRIII_UPDATE_FEED = before; f.close(); }
+		});
+
+		await check('updater: Install Previous Version prepares an older signed release', async () => {
+			const older = '0.0.00000-20000101.1';
+			const f = await feed('9.999.99999-20991231.4', { older: [older] });
+			const before = { feed: process.env.BRIII_UPDATE_FEED, releases: process.env.BRIII_UPDATE_RELEASES };
+			process.env.BRIII_UPDATE_FEED = f.url;
+			process.env.BRIII_UPDATE_RELEASES = f.listUrl;
+			try {
+				const runningRelease = JSON.parse(fs.readFileSync(path.join(vscode.env.appRoot, 'product.json'), 'utf8')).briiiRelease;
+				const r = await vscode.commands.executeCommand('briii.update.installPrevious');
+				assert(r && r.status === 'ready' && r.id === older, `status ${JSON.stringify(r)}`);
+				const state = JSON.parse(fs.readFileSync(path.join(updateDir, 'state.json'), 'utf8'));
+				assert(state.pending && state.pending.rollback === true && state.pending.id === older, `pending: ${JSON.stringify(state.pending)}`);
+				assert(fs.existsSync(state.pending.path), 'no rollback installer on disk');
+				assert(state.heldBack && state.heldBack === runningRelease, `heldBack ${JSON.stringify(state.heldBack)}`);
+				return older;
+			} finally {
+				process.env.BRIII_UPDATE_FEED = before.feed;
+				if (before.releases === undefined) delete process.env.BRIII_UPDATE_RELEASES; else process.env.BRIII_UPDATE_RELEASES = before.releases;
+				f.close();
+			}
+		});
+	} finally {
+		if (beforeTestKey === undefined) delete process.env.BRIII_UPDATE_TEST_KEY; else process.env.BRIII_UPDATE_TEST_KEY = beforeTestKey;
+	}
 
 	// Briii Sync against the in-memory Gist API from its unit tests (the repo is next to this file).
 	const { startFakeGist } = require(path.join(__dirname, '..', '..', 'brand', 'extensions', 'briii-sync', 'test', 'fakeGist.js'));
@@ -205,7 +254,7 @@ async function run() {
 
 	await check('extension commands registered', async () => {
 		const all = new Set(await vscode.commands.getCommands(true));
-		const exact = ['workbench.action.browser.open', 'briii.deploy', 'briii.deployPreview', 'briii.deployProduction', 'briii.showLastDeployment', 'claude-vscode.editor.open', 'briii.update.check', 'briii.update.installNow', 'briii.sync.up', 'briii.sync.down', 'briii.sync.showGist', 'briii.sync.openBackups', 'editor.action.formatDocument', 'git.commit', 'code-runner.run', 'rest-client.request'];
+		const exact = ['workbench.action.browser.open', 'briii.deploy', 'briii.deployPreview', 'briii.deployProduction', 'briii.showLastDeployment', 'claude-vscode.editor.open', 'briii.update.check', 'briii.update.installNow', 'briii.update.installPrevious', 'briii.sync.up', 'briii.sync.down', 'briii.sync.showGist', 'briii.sync.openBackups', 'editor.action.formatDocument', 'git.commit', 'code-runner.run', 'rest-client.request'];
 		const prefixes = ['gitlens.', 'eslint.', 'tailwindCSS.', 'errorLens.', 'pr.', 'prettier.', 'todo-tree.', 'ruff.'];
 		const missing = exact.filter(c => !all.has(c));
 		for (const p of prefixes) if (![...all].some(c => c.startsWith(p))) missing.push(`${p}*`);

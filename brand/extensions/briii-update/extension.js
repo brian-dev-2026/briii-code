@@ -6,9 +6,10 @@ const vscode = require('vscode');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { checkForUpdate } = require('./lib/updater');
+const { checkForUpdate, prepareRollback, isStalePending } = require('./lib/updater');
+const { trustedKeys } = require('./lib/releaseKeys');
 const { readState, writeState, trimLog, claimOnce } = require('./lib/state');
-const { effectiveMode, isNewer } = require('./lib/version');
+const { effectiveMode } = require('./lib/version');
 const firstLaunch = require('./lib/firstLaunch');
 const { helperCommandLine, startDetached } = require('./lib/helperLaunch');
 const { shouldInstallOnExit } = require('./lib/exitInstall');
@@ -35,6 +36,9 @@ const updateDir = () => process.env.BRIII_UPDATE_DIR ||
 	path.join(process.env.LOCALAPPDATA || os.tmpdir(), product.nameLong, 'updates'); // setup.iss deletes it on uninstall
 const feedUrl = () => process.env.BRIII_UPDATE_FEED ||
 	`https://api.github.com/repos/${product.briiiUpdateRepo}/releases/latest`;
+// The rollback list: BRIII_UPDATE_RELEASES counts only while a test feed is set.
+const releasesUrl = () => (process.env.BRIII_UPDATE_FEED && process.env.BRIII_UPDATE_RELEASES) ||
+	`https://api.github.com/repos/${product.briiiUpdateRepo}/releases?per_page=10`;
 const mayRunInstaller = () => !process.env.BRIII_UPDATE_FEED || process.env.BRIII_UPDATE_E2E === '1';
 const installDir = () => path.resolve(vscode.env.appRoot, '..', '..'); // appRoot is <install>\resources\app
 
@@ -85,6 +89,7 @@ function activate(ctx) {
 		statusItem,
 		vscode.commands.registerCommand('briii.update.check', () => runCheck(true)),
 		vscode.commands.registerCommand('briii.update.installNow', installNow),
+		vscode.commands.registerCommand('briii.update.installPrevious', installPrevious),
 		vscode.commands.registerCommand('briii.update.showLog', () => output.show()),
 		vscode.commands.registerCommand('briii.update.showReady', showReady),
 		{ dispose: () => timers.forEach(t => clearTimeout(t)) },
@@ -121,7 +126,7 @@ function keepFirstSessionLogs() {
 function finishPreviousInstall() {
 	const dir = updateDir();
 	const state = readState(dir);
-	if (state.pending && !isNewer(state.pending.id, product.briiiRelease)) {
+	if (state.pending && isStalePending(state.pending, product.briiiRelease)) {
 		fs.rmSync(state.pending.path, { force: true });
 		writeState(dir, { ...state, pending: null, failures: 0 });
 	}
@@ -166,7 +171,7 @@ async function installFirstLaunchExtensions() {
 /** One update check. Returns the checkForUpdate result (the smoke tests use it). */
 async function runCheck(manual) {
 	const m = mode();
-	const result = await checkForUpdate({ feedUrl: feedUrl(), dir: updateDir(), current: product.briiiRelease, mode: m });
+	const result = await checkForUpdate({ feedUrl: feedUrl(), dir: updateDir(), current: product.briiiRelease, mode: m, keys: trustedKeys() });
 	if (result.status === 'failed') {
 		log(`Update check failed: ${result.error}`);
 	} else if (result.status === 'ready') {
@@ -240,8 +245,8 @@ async function installNow() {
 		vscode.window.showInformationMessage('Test mode: the installer is not started.');
 		return;
 	}
-	if (!isNewer(state.pending.id, product.briiiRelease)) {
-		return;
+	if (isStalePending(state.pending, product.briiiRelease)) {
+		return; // not newer than this build (a rollback installer must be older)
 	}
 	installRequested = true;
 	startHelper(state.pending, true);
@@ -249,6 +254,52 @@ async function installNow() {
 	// next close starts a fresh one, also in notify mode (installRequested).
 	setTimeout(() => { helperStarted = false; }, 70 * 1000);
 	await vscode.commands.executeCommand('workbench.action.quit');
+}
+
+/**
+ * Briii: Install Previous Version. Prepares the newest signed release older than this build, holds
+ * this build back so it isn't offered again, then restarts into it or waits for the next close.
+ * Returns the prepareRollback result (the smoke tests read it).
+ */
+async function installPrevious() {
+	const current = product.briiiRelease;
+	if (!canWrite(installDir())) {
+		vscode.window.showWarningMessage("Briii Code can't update itself here: it is installed for all users, or in a folder you can't write to.");
+		return { status: 'failed', error: 'install folder not writable' };
+	}
+	const args = { listUrl: releasesUrl(), dir: updateDir(), current, keys: trustedKeys() };
+	const result = await vscode.window.withProgress({
+		location: vscode.ProgressLocation.Notification,
+		title: 'Briii Code: downloading the previous version',
+	}, () => prepareRollback(args));
+	if (result.status === 'none') {
+		vscode.window.showInformationMessage('No earlier signed release is available.');
+		return result;
+	}
+	if (result.status === 'failed') {
+		log(`Install Previous Version failed: ${result.error}`);
+		vscode.window.showWarningMessage(`Couldn't download the previous version: ${result.error}`, 'Show Update Log')
+			.then(choice => choice && output.show());
+		return result;
+	}
+	log(`Briii Code ${result.id} is downloaded and verified (rollback from ${current}).`);
+	if (!mayRunInstaller()) {
+		return result; // test mode: stop before the installer
+	}
+	const choice = await vscode.window.showWarningMessage(
+		`Install Briii Code ${result.id} instead of ${current}?`,
+		{ modal: true, detail: `${current} won't be installed again; updates resume with the next newer release.` },
+		'Restart and Install', 'Install on Close');
+	if (!choice) {
+		return result; // stays prepared; installs only if the user later picks Install on Close
+	}
+	installRequested = true;
+	if (choice === 'Restart and Install') {
+		startHelper(readState(updateDir()).pending, true);
+		setTimeout(() => { helperStarted = false; }, 70 * 1000);
+		await vscode.commands.executeCommand('workbench.action.quit');
+	}
+	return result;
 }
 
 /** Starts install-on-exit.ps1 outside the extension host: it waits for Briii Code to close, then installs. */
@@ -286,6 +337,7 @@ function deactivate() {
 		maxFailures: MAX_FAILURES,
 		mayRunInstaller: mayRunInstaller(),
 		installRequested,
+		rollback: !!state.pending?.rollback,
 	})) {
 		startHelper(state.pending, false);
 	}

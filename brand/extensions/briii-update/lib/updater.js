@@ -14,13 +14,28 @@ function checkForUpdate(args) {
 	if (args.mode === 'off') {
 		return Promise.resolve({ status: 'off' });
 	}
-	if (!inflight.has(args.dir)) {
-		inflight.set(args.dir, check(args).finally(() => inflight.delete(args.dir)));
+	const running = inflight.get(args.dir);
+	if (running && running.kind === 'check') {
+		return running.promise;
 	}
-	return inflight.get(args.dir);
+	// A running rollback is waited for, never shared: its result isn't a check's.
+	const wait = running ? running.promise.catch(() => { }) : Promise.resolve();
+	return enqueue(args.dir, 'check', wait.then(() => check(args)));
 }
 
+/** In-flight work per folder: { kind: 'check' | 'rollback', promise }. Each run removes only its own entry. */
 const inflight = new Map();
+
+function enqueue(dir, kind, work) {
+	const promise = work.finally(() => {
+		const entry = inflight.get(dir);
+		if (entry && entry.promise === promise) {
+			inflight.delete(dir);
+		}
+	});
+	inflight.set(dir, { kind, promise });
+	return promise;
+}
 
 async function check({ feedUrl, dir, current, keys }) {
 	const state = readState(dir);
@@ -73,14 +88,9 @@ function isStalePending(pending, current) {
  * @returns {Promise<{ status: 'none' } | { status: 'ready', id: string } | { status: 'failed', error: string }>}
  */
 function prepareRollback(args) {
-	const wait = inflight.get(args.dir) || Promise.resolve();
-	const run = wait.catch(() => { }).then(() => rollback(args)).finally(() => {
-		if (inflight.get(args.dir) === run) {
-			inflight.delete(args.dir);
-		}
-	});
-	inflight.set(args.dir, run);
-	return run;
+	const running = inflight.get(args.dir);
+	const wait = running ? running.promise.catch(() => { }) : Promise.resolve();
+	return enqueue(args.dir, 'rollback', wait.then(() => rollback(args)));
 }
 
 async function rollback({ listUrl, dir, current, keys }) {

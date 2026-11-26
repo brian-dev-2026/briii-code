@@ -248,3 +248,29 @@ test('prepareRollback leaves state unchanged when the signature is bad', async t
 	assert.equal(state.pending, null);
 	assert.equal(state.heldBack, null);
 });
+
+test('checkForUpdate called during a rollback does not return the rollback\'s result', async t => {
+	const feed = await startFeed({ id: ID, releases: [PREV] });
+	t.after(feed.close);
+	const dir = tempDir();
+	const rolling = prepareRollback({ listUrl: feed.listUrl, dir, current: ID, keys });
+	const r = await checkForUpdate({ feedUrl: feed.url, dir, current: ID, mode: 'auto', keys });
+	assert.deepEqual(r, { status: 'none' });
+	assert.equal((await rolling).status, 'ready');
+});
+
+test('a check finishing does not unregister a queued rollback', async t => {
+	const feed = await startFeed({ id: ID, releases: [PREV] });
+	t.after(feed.close);
+	const dir = tempDir();
+	const check = checkForUpdate({ feedUrl: feed.url, dir, current: ID, mode: 'auto', keys });
+	const rolling = prepareRollback({ listUrl: feed.listUrl, dir, current: ID, keys });
+	await check;
+	// The rollback is still running: a new check must wait for it, not run beside it.
+	await checkForUpdate({ feedUrl: feed.url, dir, current: ID, mode: 'auto', keys });
+	assert.equal(readState(dir).pending?.id, PREV, 'the new check ran before the rollback finished');
+	assert.equal((await rolling).status, 'ready');
+	const state = readState(dir);
+	assert.equal(state.pending.rollback, true);
+	assert.equal(state.heldBack, ID);
+});

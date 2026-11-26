@@ -17,6 +17,7 @@
 		"commands": [
 			{ "command": "briii.update.check", "title": "Check for Updates", "category": "Briii" },
 			{ "command": "briii.update.installNow", "title": "Install Update Now", "category": "Briii" },
+			{ "command": "briii.update.installPrevious", "title": "Install Previous Version…", "category": "Briii" },
 			{ "command": "briii.update.showLog", "title": "Show Update Log", "category": "Briii" }
 		],
 		"configuration": {

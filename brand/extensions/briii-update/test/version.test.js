@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseRelease, isNewer, effectiveMode } = require('../lib/version');
+const { parseRelease, isNewer, isOlder, effectiveMode } = require('../lib/version');
 
 test('parseRelease reads a published release id', () => {
 	assert.deepEqual(parseRelease('1.135.06055-20261001.14'), { vscodium: [1, 135, 6055], date: 20261001, run: 14, local: false });
@@ -80,4 +80,28 @@ test('isNewer: a zero-padded run number compares by value', () => {
 	assert.equal(isNewer('1.135.06055-20261002.0013', '1.135.06055-20261002.12'), true);
 	assert.equal(isNewer('1.135.06055-20261002.0012', '1.135.06055-20261002.12'), false);
 	assert.equal(isNewer('1.135.06055-20261002.13', '1.135.06055-20261002.0012'), true);
+});
+
+test('isOlder: published against published', () => {
+	assert.equal(isOlder('1.135.06055-20261001.1', '1.135.06055-20261001.2'), true);
+	assert.equal(isOlder('1.135.06055-20261002.1', '1.135.06055-20261001.2'), false);
+	assert.equal(isOlder('1.135.06055-20261001.2', '1.135.06055-20261001.2'), false);
+	assert.equal(isOlder('1.135.06055-20261001.0002', '1.135.06055-20261001.10'), true);
+});
+
+test('isOlder: a local or unparsable candidate is never older', () => {
+	assert.equal(isOlder('1.135.06055-local', '1.135.06055-20261001.2'), false);
+	assert.equal(isOlder('vjunk', '1.135.06055-20261001.2'), false);
+	assert.equal(isOlder(undefined, '1.135.06055-20261001.2'), false);
+});
+
+test('isOlder: against a local build compares the VSCodium version', () => {
+	assert.equal(isOlder('1.135.06055-20261001.1', '1.136.00100-local'), true);
+	assert.equal(isOlder('1.136.00100-20261001.1', '1.136.00100-local'), false);
+	assert.equal(isOlder('1.137.00001-20261001.1', '1.136.00100-local'), false);
+});
+
+test('isOlder: an unparsable current build has nothing older', () => {
+	assert.equal(isOlder('1.135.06055-20261001.1', 'junk'), false);
+	assert.equal(isOlder('1.135.06055-20261001.1', undefined), false);
 });

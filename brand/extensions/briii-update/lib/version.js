@@ -51,6 +51,22 @@ function isNewer(candidate, current) {
 }
 
 /**
+ * True when `candidate` is a published build older than `current` (the opposite of isNewer, which
+ * can't say it for a local `current`). Against a local build, "older" means a lower VSCodium version.
+ */
+function isOlder(candidate, current) {
+	const a = parseRelease(candidate);
+	const b = parseRelease(current);
+	if (!a || a.local || !b) {
+		return false;
+	}
+	if (b.local) {
+		return compareParts(a.vscodium, b.vscodium) < 0;
+	}
+	return isNewer(current, candidate);
+}
+
+/**
  * What the updater may do for this install:
  * 'off' when switched off or the build has no release id (dev runs),
  * 'notify' for local builds and all-users installs (a silent install would need admin rights:
@@ -68,4 +84,4 @@ function effectiveMode({ mode, current, appRoot, programFiles, writable = true }
 	return mode === 'notify' ? 'notify' : 'auto';
 }
 
-module.exports = { parseRelease, isNewer, effectiveMode };
+module.exports = { parseRelease, isNewer, isOlder, effectiveMode };

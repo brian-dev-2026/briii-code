@@ -22,7 +22,7 @@ function checkForUpdate(args) {
 
 const inflight = new Map();
 
-async function check({ feedUrl, dir, current }) {
+async function check({ feedUrl, dir, current, keys }) {
 	const state = readState(dir);
 	try {
 		// A pending installer that isn't newer (the app was updated by hand) must never run.
@@ -42,7 +42,7 @@ async function check({ feedUrl, dir, current }) {
 		const reuse = state.pending && state.pending.id === latest.id && fs.existsSync(state.pending.path) &&
 			await hashFile(state.pending.path) === state.pending.sha256;
 		if (!reuse) {
-			const file = await downloadVerified(latest, dir);
+			const file = await downloadVerified(latest, dir, keys ? { keys } : {});
 			state.pending = { id: latest.id, path: file, sha256: await hashFile(file) };
 			state.failures = 0;
 		}

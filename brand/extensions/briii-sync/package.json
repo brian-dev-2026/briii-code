@@ -27,6 +27,7 @@
 					"type": "string",
 					"enum": ["off", "ask", "pull"],
 					"default": "off",
+					"scope": "application",
 					"enumDescriptions": [
 						"Don't check on startup.",
 						"Check a minute after startup and offer to review changes made on another PC.",

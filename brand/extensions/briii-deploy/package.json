@@ -31,6 +31,7 @@
 				"briiiDeploy.vercelCommand": {
 					"type": "string",
 					"default": "vercel",
+					"scope": "machine",
 					"description": "Command used to run the Vercel CLI (for example \"npx vercel\")."
 				}
 			}

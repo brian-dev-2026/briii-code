@@ -26,6 +26,7 @@
 					"type": "string",
 					"enum": ["auto", "notify", "off"],
 					"default": "auto",
+					"scope": "application",
 					"enumDescriptions": [
 						"Download updates in the background and install them when Briii Code closes.",
 						"Download updates in the background, then ask before installing.",

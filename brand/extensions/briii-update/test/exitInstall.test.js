@@ -46,3 +46,21 @@ test('repeated failures stop automatic installs but not a requested one', () => 
 	assert.equal(shouldInstallOnExit({ ...base, failures: 3 }), false);
 	assert.equal(shouldInstallOnExit({ ...base, failures: 3, installRequested: true }), true);
 });
+
+const OLDER = '1.135.06055-20261001.0010';
+
+test('a rollback older than the running build installs on close', () => {
+	assert.equal(shouldInstallOnExit({ ...base, pendingId: OLDER, rollback: true }), true);
+});
+
+test('an older installer that is not a rollback never installs', () => {
+	assert.equal(shouldInstallOnExit({ ...base, pendingId: OLDER }), false);
+});
+
+test('a rollback installs on close from a local build', () => {
+	assert.equal(shouldInstallOnExit({ ...base, current: '1.143.17232-local', pendingId: '1.140.06880-20261015.0050', rollback: true }), true);
+});
+
+test('a rollback that is not older than the running build never installs', () => {
+	assert.equal(shouldInstallOnExit({ ...base, rollback: true }), false);
+});

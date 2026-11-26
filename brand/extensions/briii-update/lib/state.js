@@ -4,9 +4,13 @@
 const fs = require('fs');
 const path = require('path');
 
-const DEFAULT = () => ({ pending: null, failures: 0, lastCheck: 0 });
+const DEFAULT = () => ({ pending: null, failures: 0, lastCheck: 0, heldBack: null });
 
-/** @returns {{ pending: { id: string, path: string, sha256: string } | null, failures: number, lastCheck: number }} */
+/**
+ * `pending.rollback` marks an installer for an older release (chosen by the user); `heldBack` is the
+ * release id the user rolled back from, which must not be offered again until a newer one exists.
+ * @returns {{ pending: { id: string, path: string, sha256: string, rollback?: boolean } | null, failures: number, lastCheck: number, heldBack: string | null }}
+ */
 function readState(dir) {
 	try {
 		const s = JSON.parse(fs.readFileSync(path.join(dir, 'state.json'), 'utf8'));
